@@ -6,8 +6,8 @@ package com.hxqh.bigdata.conf;
 public class ConfigurationManagerTest {
 
     public static void main(String[] args) {
-        String testkey1 = ConfigurationManager.getProperty("testkey1");
-        String testkey2 = ConfigurationManager.getProperty("testkey2");
+        String testkey1 = ConfigurationManager.getProperty("jdbc.url.prod");
+        String testkey2 = ConfigurationManager.getProperty("jdbc.user.prod");
         System.out.println(testkey1);
         System.out.println(testkey2);
     }
