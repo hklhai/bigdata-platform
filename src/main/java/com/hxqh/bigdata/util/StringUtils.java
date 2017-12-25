@@ -63,15 +63,24 @@ public class StringUtils {
      * @param field     字段
      * @return 字段值
      */
-    public static String getFieldFromConcatString(String str,
-                                                  String delimiter, String field) {
-        String[] fields = str.split(delimiter);
-        for (String concatField : fields) {
-            String fieldName = concatField.split("=")[0];
-            String fieldValue = concatField.split("=")[1];
-            if (fieldName.equals(field)) {
-                return fieldValue;
+    public static String getFieldFromConcatString(String str, String delimiter, String field) {
+
+
+        try {
+            String[] fields = str.split(delimiter);
+
+            for (String concatField : fields) {
+                // searchWord=|clickCatagory=1,2,3
+                if (concatField.split("=").length == 2) {
+                    String fieldName = concatField.split("=")[0];
+                    String fieldValue = concatField.split("=")[1];
+                    if (fieldName.equals(field)) {
+                        return fieldValue;
+                    }
+                }
             }
+        } catch (Exception e) {
+            e.printStackTrace();
         }
         return null;
     }
