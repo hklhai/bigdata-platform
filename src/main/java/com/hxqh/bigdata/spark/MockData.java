@@ -26,7 +26,7 @@ public class MockData {
      */
     public static void mock(JavaSparkContext sc,
                             SQLContext sqlContext) {
-        List<Row> rows = new ArrayList<Row>();
+        List<Row> rows = new ArrayList<>();
 
         String[] searchKeywords = new String[]{"火锅", "蛋糕", "重庆辣子鸡", "重庆小面",
                 "呷哺呷哺", "新辣道鱼火锅", "国贸大厦", "太古商场", "日本料理", "温泉"};

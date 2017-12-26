@@ -72,9 +72,9 @@ public class UserVisitSessionAnalysis {
         JSONObject taskParam = JSONObject.parseObject(task_param);
         /********************************获取查询参数**********************************/
         JavaPairRDD<String, String> fullRDD = aggByUserId(sqlContext, taskParam);
-        System.out.println("fullRDD:"+fullRDD.count());
+        System.out.println("fullRDD:" + fullRDD.count());
         JavaPairRDD<String, String> filterRDDByParameter = filterRDDByParameter(taskParam, fullRDD);
-        System.out.println("filterRDD:"+filterRDDByParameter.count());
+        System.out.println("filterRDD:" + filterRDDByParameter.count());
 
         sc.close();
     }
@@ -179,6 +179,7 @@ public class UserVisitSessionAnalysis {
                 return new Tuple2<>(row.getString(2), row);
             }
         });
+        System.out.println(actionRDD.count());
         JavaPairRDD<String, Iterable<Row>> sessionGroupRDD = pariRDD.groupByKey();
 
         // 对每一个session分组进行聚合，将session中所有的搜索词和点击品类都聚合起来
@@ -289,6 +290,11 @@ public class UserVisitSessionAnalysis {
      * @return
      */
     private static JavaRDD<Row> getActionRDDByDateRange(SQLContext sqlContext, JSONObject taskParamJson) {
+
+        String sql_allData = "select * from user_visit_action ";
+        DataFrame allDataDF = sqlContext.sql(sql_allData);
+        System.out.println(allDataDF.count());
+
         String startDate = ParamUtils.getParam(taskParamJson, Constants.PARAM_START_DATE);
         String endDate = ParamUtils.getParam(taskParamJson, Constants.PARAM_END_DATE);
 
@@ -298,7 +304,7 @@ public class UserVisitSessionAnalysis {
                 + "and date<='" + endDate + "'";
 
         DataFrame actionDF = sqlContext.sql(sql);
-
+        System.out.println(actionDF.count());
         return actionDF.javaRDD();
     }
 
