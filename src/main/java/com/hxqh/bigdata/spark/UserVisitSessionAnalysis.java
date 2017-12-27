@@ -3,9 +3,11 @@ package com.hxqh.bigdata.spark;
 import com.alibaba.fastjson.JSONObject;
 import com.hxqh.bigdata.conf.ConfigurationManager;
 import com.hxqh.bigdata.jdbc.Constants;
+import com.hxqh.bigdata.util.DateUtils;
 import com.hxqh.bigdata.util.ParamUtils;
 import com.hxqh.bigdata.util.StringUtils;
 import com.hxqh.bigdata.util.ValidUtils;
+import org.apache.spark.Accumulator;
 import org.apache.spark.SparkConf;
 import org.apache.spark.api.java.JavaPairRDD;
 import org.apache.spark.api.java.JavaRDD;
@@ -18,6 +20,7 @@ import org.apache.spark.sql.SQLContext;
 import org.apache.spark.sql.hive.HiveContext;
 import scala.Tuple2;
 
+import java.util.Date;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Properties;
@@ -73,13 +76,17 @@ public class UserVisitSessionAnalysis {
         /********************************获取查询参数**********************************/
         JavaPairRDD<String, String> fullRDD = aggByUserId(sqlContext, taskParam);
         System.out.println("fullRDD:" + fullRDD.count());
-        JavaPairRDD<String, String> filterRDDByParameter = filterRDDByParameter(taskParam, fullRDD);
+
+        // 增加自定义累加器
+        Accumulator sessionAggrStatAccumulator = sc.accumulator("", new SessionAggrStatAccumulator());
+
+        JavaPairRDD<String, String> filterRDDByParameter = filterRDDByParameterAndAggrStage(taskParam, fullRDD, sessionAggrStatAccumulator);
         System.out.println("filterRDD:" + filterRDDByParameter.count());
 
         sc.close();
     }
 
-    private static JavaPairRDD<String, String> filterRDDByParameter(JSONObject taskParam, JavaPairRDD<String, String> fullRDD) {
+    private static JavaPairRDD<String, String> filterRDDByParameterAndAggrStage(JSONObject taskParam, JavaPairRDD<String, String> fullRDD, final Accumulator sessionAggrStatAccumulator) {
         // 使用ValieUtils，所以，首先将所有的筛选参数拼接成一个连接串
         // todo 可优化项
         String startAge = ParamUtils.getParam(taskParam, Constants.PARAM_START_AGE);
@@ -101,7 +108,6 @@ public class UserVisitSessionAnalysis {
             _parameter = _parameter.substring(0, _parameter.length() - 1);
 
         final String parameter = _parameter;
-
 
         // 获取的数据是<sessionid,(sessionid,searchKeywords,clickCategoryIds,age,professional,city,sex)>
         JavaPairRDD<String, String> filter = fullRDD.filter(new Function<Tuple2<String, String>, Boolean>() {
@@ -150,7 +156,70 @@ public class UserVisitSessionAnalysis {
                 if (!ValidUtils.in(aggrInfo, Constants.FIELD_CLICK_CATEGORY_IDS, parameter, Constants.PARAM_CATEGORY_IDS)) {
                     return false;
                 }
+
+
+                /*********************Session 访问时长、访问步长*********************/
+                // 经过之前的多个过滤条件之后，那么说明该session是通过了用户指定的筛选条件的，是需要保留的session
+                // 那么要对session的访问时长和访问步长，进行统计，根据session对应的范围进行相应的累加计数
+
+                // 提取出该端的步长，然后加1
+                sessionAggrStatAccumulator.add(Constants.SESSION_COUNT);
+
+                // 计算出session的访问时长和访问步长的范围，并进行相应的累加
+                long visitLength = Long.valueOf(StringUtils.getFieldFromConcatString(aggrInfo, "\\|", Constants.FIELD_VISIT_LENGTH));
+                long stepLength = Long.valueOf(StringUtils.getFieldFromConcatString(aggrInfo, "\\|", Constants.FIELD_STEP_LENGTH));
+
+                calculateVisitLength(visitLength);
+                calculateStepLength(stepLength);
+                /*********************Session 访问时长、访问步长*********************/
+
                 return true;
+            }
+
+            /**
+             * 计算访问时长范围
+             * @param visitLength
+             */
+            private void calculateVisitLength(long visitLength) {
+                if (visitLength >= 1 && visitLength <= 3) {
+                    sessionAggrStatAccumulator.add(Constants.TIME_PERIOD_1s_3s);
+                } else if (visitLength >= 4 && visitLength <= 6) {
+                    sessionAggrStatAccumulator.add(Constants.TIME_PERIOD_4s_6s);
+                } else if (visitLength >= 7 && visitLength <= 9) {
+                    sessionAggrStatAccumulator.add(Constants.TIME_PERIOD_7s_9s);
+                } else if (visitLength >= 10 && visitLength <= 30) {
+                    sessionAggrStatAccumulator.add(Constants.TIME_PERIOD_10s_30s);
+                } else if (visitLength > 30 && visitLength <= 60) {
+                    sessionAggrStatAccumulator.add(Constants.TIME_PERIOD_30s_60s);
+                } else if (visitLength > 60 && visitLength <= 180) {
+                    sessionAggrStatAccumulator.add(Constants.TIME_PERIOD_1m_3m);
+                } else if (visitLength > 180 && visitLength <= 600) {
+                    sessionAggrStatAccumulator.add(Constants.TIME_PERIOD_3m_10m);
+                } else if (visitLength > 600 && visitLength <= 1800) {
+                    sessionAggrStatAccumulator.add(Constants.TIME_PERIOD_10m_30m);
+                } else if (visitLength > 1800) {
+                    sessionAggrStatAccumulator.add(Constants.TIME_PERIOD_30m);
+                }
+            }
+
+            /**
+             * 计算访问步长范围
+             * @param stepLength
+             */
+            private void calculateStepLength(long stepLength) {
+                if (stepLength >= 1 && stepLength <= 3) {
+                    sessionAggrStatAccumulator.add(Constants.STEP_PERIOD_1_3);
+                } else if (stepLength >= 4 && stepLength <= 6) {
+                    sessionAggrStatAccumulator.add(Constants.STEP_PERIOD_4_6);
+                } else if (stepLength >= 7 && stepLength <= 9) {
+                    sessionAggrStatAccumulator.add(Constants.STEP_PERIOD_7_9);
+                } else if (stepLength >= 10 && stepLength <= 30) {
+                    sessionAggrStatAccumulator.add(Constants.STEP_PERIOD_10_30);
+                } else if (stepLength > 30 && stepLength <= 60) {
+                    sessionAggrStatAccumulator.add(Constants.STEP_PERIOD_30_60);
+                } else if (stepLength > 60) {
+                    sessionAggrStatAccumulator.add(Constants.STEP_PERIOD_60);
+                }
             }
         });
         return filter;
@@ -196,6 +265,14 @@ public class UserVisitSessionAnalysis {
                 Long userid = null;
                 String partAggrInfo = new String();
 
+                /*********************Session 访问时长、访问步长*********************/
+                // session的起始和结束时间
+                Date startTime = null;
+                Date endTime = null;
+                // session的访问步长
+                int stepLength = 0;
+                /*********************Session 访问时长、访问步长*********************/
+
                 // 遍历session所有的访问行为
                 while (iterator.hasNext()) {
                     Row row = iterator.next();
@@ -225,6 +302,33 @@ public class UserVisitSessionAnalysis {
                     String clickCategoryIds = StringUtils.trimComma(clickCategoryIdsBuffer.toString());
 
 
+                    /*********************Session 访问时长、访问步长*********************/
+                    // 计算session开始和结束时间
+                    Date actionTime = DateUtils.parseTime(row.getString(4));
+
+                    // 计算开始时间与结束时间
+                    if (startTime == null) {
+                        startTime = actionTime;
+                    }
+                    if (endTime == null) {
+                        endTime = actionTime;
+                    }
+
+                    if (actionTime.before(startTime)) {
+                        startTime = actionTime;
+                    }
+                    if (actionTime.after(endTime)) {
+                        endTime = actionTime;
+                    }
+
+                    // 计算session访问步长
+                    stepLength++;
+
+                    // 计算session访问时长（秒）
+                    long visitLength = (endTime.getTime() - startTime.getTime()) / 1000;
+                    /*********************Session 访问时长、访问步长*********************/
+
+
                     // 返回的数据格式，<userid,partAggrInfo>
                     // 然后跟用户信息join的时候，将partAggrInfo关联上userInfo
                     // 然后再直接将返回的Tuple的key设置成sessionid
@@ -232,7 +336,9 @@ public class UserVisitSessionAnalysis {
                     // 聚合数据统一定义，使用key=value|key=value
                     partAggrInfo = Constants.FIELD_SESSION_ID + "=" + sessionId + "|"
                             + Constants.FIELD_SEARCH_KEYWORDS + "=" + searchKeywords + "|"
-                            + Constants.FIELD_CLICK_CATEGORY_IDS + "=" + clickCategoryIds;
+                            + Constants.FIELD_CLICK_CATEGORY_IDS + "=" + clickCategoryIds + "|"
+                            + Constants.FIELD_VISIT_LENGTH + "=" + visitLength + "|"
+                            + Constants.FIELD_STEP_LENGTH + "=" + stepLength;
                 }
 
                 return new Tuple2<>(userid, partAggrInfo);

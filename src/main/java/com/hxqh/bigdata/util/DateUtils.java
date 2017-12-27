@@ -1,12 +1,12 @@
 package com.hxqh.bigdata.util;
 
+import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.Calendar;
 import java.util.Date;
 
 /**
  * 日期时间工具类
- *
  */
 public class DateUtils {
 
@@ -135,4 +135,19 @@ public class DateUtils {
         return TIME_FORMAT.format(date);
     }
 
+
+    /**
+     * 解析时间字符串
+     *
+     * @param time 时间字符串
+     * @return Date
+     */
+    public static Date parseTime(String time) {
+        try {
+            return TIME_FORMAT.parse(time);
+        } catch (ParseException e) {
+            e.printStackTrace();
+        }
+        return null;
+    }
 }
