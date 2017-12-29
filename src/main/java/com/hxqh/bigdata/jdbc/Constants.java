@@ -10,7 +10,7 @@ public interface Constants {
      */
     String JDBC_DRIVER = "jdbc.driver";
     String JDBC_DATASOURCE_SIZE = "jdbc.datasource.size";
-    String JDBC_URL = "jdbc:mysql://localhost:3306/spark_project";
+    String JDBC_URL = "jdbc.url";
     String JDBC_USER = "jdbc.user";
     String JDBC_PASSWORD = "jdbc.password";
 

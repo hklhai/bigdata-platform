@@ -1,4 +1,4 @@
-package com.hxqh.bigdata.spark;
+package com.hxqh.bigdata.spark.session;
 
 import com.alibaba.fastjson.JSONObject;
 import com.hxqh.bigdata.conf.ConfigurationManager;

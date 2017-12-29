@@ -22,7 +22,7 @@ public class JDBCHelper {
     static {
         try {
             String driver = ConfigurationManager.getProperty(Constants.JDBC_DRIVER);
-            Class.forName(driver);
+            Class.forName("com.mysql.jdbc.Driver");
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -47,7 +47,7 @@ public class JDBCHelper {
     }
 
     // 数据库连接池
-    private LinkedList<Connection> datasource = new LinkedList<Connection>();
+    private LinkedList<Connection> datasource = new LinkedList<>();
 
     /**
      * 第三步：实现单例的过程中，创建唯一的数据库连接池
@@ -60,8 +60,7 @@ public class JDBCHelper {
      */
     private JDBCHelper() {
         // 首先第一步，获取数据库连接池的大小，就是说，数据库连接池中要放多少个数据库连接
-        int datasourceSize = ConfigurationManager.getInteger(
-                Constants.JDBC_DATASOURCE_SIZE);
+        int datasourceSize = ConfigurationManager.getInteger(Constants.JDBC_DATASOURCE_SIZE);
 
         // 然后创建指定数量的数据库连接，并放入数据库连接池中
         for (int i = 0; i < datasourceSize; i++) {
@@ -219,7 +218,6 @@ public class JDBCHelper {
 
     /**
      * 静态内部类：查询回调接口
-     *
      */
     public static interface QueryCallback {
 

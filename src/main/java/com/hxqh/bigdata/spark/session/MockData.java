@@ -1,4 +1,4 @@
-package com.hxqh.bigdata.spark;
+package com.hxqh.bigdata.spark.session;
 
 import com.hxqh.bigdata.util.DateUtils;
 import com.hxqh.bigdata.util.StringUtils;

@@ -1,23 +1,26 @@
-package com.hxqh.bigdata.spark;
+package com.hxqh.bigdata.spark.session;
 
 import com.hxqh.bigdata.jdbc.Constants;
 import com.hxqh.bigdata.util.StringUtils;
 import org.apache.spark.AccumulatorParam;
 
+import java.io.Serializable;
+
 /**
  * Created by Ocean lin on 2017/12/26.
- *
- *
+ * <p>
+ * <p>
  * 使用自定义的一些数据格式，比如String，也可以自己定义model，自定义的类（必须可序列化）
  * 然后可以基于这种特殊的数据格式，可以实现自己复杂的分布式的计算逻辑
  * 各个task，分布式在运行，可以根据需求，task给Accumulator传入不同的值
  * 根据不同的值，做复杂的逻辑
- *
- *
+ * <p>
+ * <p>
  * AccumulatorParam<String>表示针对什么格式的数据进行分布式计算
  */
-public class SessionAggrStatAccumulator implements AccumulatorParam<String> {
+public class SessionAggrStatAccumulator implements AccumulatorParam<String>, Serializable {
 
+    private static final long serialVersionUID = 6311074555136039130L;
 
     /**
      * zero方法，主要用于数据的初始化
@@ -25,7 +28,7 @@ public class SessionAggrStatAccumulator implements AccumulatorParam<String> {
      * 各个范围区间的统计数量的拼接，采用的key=value|key=value的连接串的格式
      */
     @Override
-    public String zero(String initialValue) {
+    public String zero(String v) {
         return Constants.SESSION_COUNT + "=0|"
                 + Constants.TIME_PERIOD_1s_3s + "=0|"
                 + Constants.TIME_PERIOD_4s_6s + "=0|"
@@ -45,45 +48,43 @@ public class SessionAggrStatAccumulator implements AccumulatorParam<String> {
     }
 
 
-
     /**
      * addInPlace和addAccumulator是一样的
-     *
+     * <p>
      * 这两个方法，其实主要就是实现，v1是初始化的那个连接串
-     * t2，就是在遍历session的时候，判断出某个session对应的区间，然后会用Constants.TIME_PERIOD_1s_3s
-     * 在t1中，找到t2对应的value，累加1，然后再更新回连接串里
-     *
+     * v2，就是在遍历session的时候，判断出某个session对应的区间，然后会用Constants.TIME_PERIOD_1s_3s
+     * 在v1中，找到v2对应的value，累加1，然后再更新回连接串里
      */
     @Override
-    public String addAccumulator(String t1, String t2) {
-        return add(t1, t2);
+    public String addAccumulator(String v1, String v2) {
+        return add(v1, v2);
     }
 
 
     @Override
-    public String addInPlace(String r1, String r2) {
-        return add(r1, r2);
+    public String addInPlace(String v1, String v2) {
+        return add(v1, v2);
     }
 
 
     /**
      * session统计计算逻辑
      *
-     * @param t1 连接串
-     * @param t2 范围区间
+     * @param v1 连接串
+     * @param v2 范围区间
      * @return 更新以后的连接串
      */
-    private String add(String t1, String t2) {
-        if (StringUtils.isNotEmpty(t1)) {
-            return t2;
+    private String add(String v1, String v2) {
+        if (StringUtils.isEmpty(v1)) {
+            return v2;
         }
-        // 从t1中提取t2对应的值，并累加
-        String oldValue = StringUtils.getFieldFromConcatString(t1, "\\|", t2);
-        if (null != oldValue) {
-            int newValue = 1 + Integer.valueOf(oldValue);
+        // 从v1中提取v2对应的值，并累加
+        String oldValue = StringUtils.getFieldFromConcatString(v1, "\\|", v2);
+        if (oldValue != null) {
+            int newValue = Integer.valueOf(oldValue) + 1;
             // 将v1中v2对应的值设置为累加的值
-            StringUtils.setFieldInConcatString(t1, "\\|", t2, String.valueOf(newValue));
+            return StringUtils.setFieldInConcatString(v1, "\\|", v2, String.valueOf(newValue));
         }
-        return t1;
+        return v1;
     }
 }
