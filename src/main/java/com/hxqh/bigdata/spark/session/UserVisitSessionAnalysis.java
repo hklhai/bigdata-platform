@@ -20,10 +20,7 @@ import org.apache.spark.sql.SQLContext;
 import org.apache.spark.sql.hive.HiveContext;
 import scala.Tuple2;
 
-import java.util.Date;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Properties;
+import java.util.*;
 
 /**
  * Created by Ocean lin on 2017/12/22.
@@ -93,13 +90,18 @@ public class UserVisitSessionAnalysis {
          *
          * 必须把能够触发job执行的操作，放在最终写入MySQL方法之前
          */
-        System.out.println(filterRDDByParameter.count());
+        //System.out.println(filterRDDByParameter.count());
+
+        // 存在countByKey不需要使用count算子触发执行
+        randomExtractSession(filterRDDByParameter);
+
 
         // 计算出各个范围的session占比，并写入MySQL
         calculateAndPersistAggrStat(sessionAggrStatAccumulator.value(), taskid, prop, sqlContext);
 
         sc.close();
     }
+
 
     private static JavaPairRDD<String, String> filterRDDByParameterAndAggrStage(JSONObject taskParam, JavaPairRDD<String, String> fullRDD, final Accumulator<String> sessionAggrStatAccumulator) {
         // 使用ValieUtils，所以，首先将所有的筛选参数拼接成一个连接串
@@ -353,7 +355,8 @@ public class UserVisitSessionAnalysis {
                             + Constants.FIELD_SEARCH_KEYWORDS + "=" + searchKeywords + "|"
                             + Constants.FIELD_CLICK_CATEGORY_IDS + "=" + clickCategoryIds + "|"
                             + Constants.FIELD_VISIT_LENGTH + "=" + visitLength + "|"
-                            + Constants.FIELD_STEP_LENGTH + "=" + stepLength;
+                            + Constants.FIELD_STEP_LENGTH + "=" + stepLength + "|"
+                            + Constants.FIELD_START_TIME + "=" + DateUtils.formatTime(startTime);
                 }
 
                 return new Tuple2<>(userid, partAggrInfo);
@@ -458,6 +461,52 @@ public class UserVisitSessionAnalysis {
         if (local) {
             MockData.mock(sc, sqlContext);
         }
+    }
+
+    private static void randomExtractSession(JavaPairRDD<String, String> filterRDDByParameter) {
+        // 计算每天每小时session数量
+        JavaPairRDD<String, String> date_aggrInfo_RDD = filterRDDByParameter.mapToPair(new PairFunction<Tuple2<String, String>, String, String>() {
+            @Override
+            public Tuple2<String, String> call(Tuple2<String, String> tuple2) throws Exception {
+                String startTime = StringUtils.getFieldFromConcatString(tuple2._2, "\\|", Constants.FIELD_START_TIME);
+                String dateHour = DateUtils.getDateHour(startTime);
+                return new Tuple2<>(dateHour, tuple2._2);
+            }
+        });
+        // countByKey
+        /**
+         *
+         * 每天每小时的session数量，然后计算出每天每小时的session抽取索引，遍历每天每小时session
+         * 首先抽取出的session的聚合数据，写入session_random_extract表
+         * 所以第一个RDD的value，应该是session聚合数据
+         *
+         */
+
+        Map<String, Object> date_aggrInfo_Map = date_aggrInfo_RDD.countByKey();
+
+        // 第二步，按时间比例随机抽取算法，计算出每天每小时要抽取session的索引
+        Map<String, Map<String, Long>> dayHourCountMap = new HashMap<>();
+
+        for (Map.Entry<String, Object> entry : date_aggrInfo_Map.entrySet()) {
+            String dateHour = entry.getKey();
+            String date = dateHour.split("_")[0];
+            String hour = dateHour.split("_")[1];
+
+            Long count = Long.valueOf(String.valueOf(entry.getValue()));
+            Map<String, Long> hourCountMap = dayHourCountMap.get(date);
+            if (hourCountMap == null) {
+                hourCountMap = new HashMap<>();
+                dayHourCountMap.put(date, hourCountMap);
+            }
+            hourCountMap.put(hour, count);
+        }
+
+
+        // 按时间比例随机抽取算法
+        // 总共要抽取100个session，先按照天数，再进行平分
+        int extractNumberPerDay = 100 / dayHourCountMap.size();
+        // todo 待完成
+
     }
 
 
