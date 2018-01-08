@@ -121,8 +121,9 @@ public class UserVisitSessionAnalysis {
                 + (sex != null ? Constants.PARAM_SEX + "=" + sex + "|" : "")
                 + (keywords != null ? Constants.PARAM_KEYWORDS + "=" + keywords + "|" : "")
                 + (categoryIds != null ? Constants.PARAM_CATEGORY_IDS + "=" + categoryIds : "");
-        if (_parameter.endsWith("\\|"))
+        if (_parameter.endsWith("\\|")) {
             _parameter = _parameter.substring(0, _parameter.length() - 1);
+        }
 
         final String parameter = _parameter;
 
@@ -293,8 +294,9 @@ public class UserVisitSessionAnalysis {
                 // 遍历session所有的访问行为
                 while (iterator.hasNext()) {
                     Row row = iterator.next();
-                    if (userid == null)
+                    if (userid == null) {
                         userid = row.getLong(1);
+                    }
 
                     String searchKeyword = row.getString(5);
                     Long clickCategoryId = row.getLong(6);
@@ -306,12 +308,14 @@ public class UserVisitSessionAnalysis {
                     // 是否将搜索词或点击品类id拼接到字符串中去
                     // 首先要满足2个条件：1.不能是null值；2.之前的字符串中还没有搜索词或者点击品类id
                     if (StringUtils.isNotEmpty(searchKeyword)) {
-                        if (!searchKeywordsBuffer.toString().contains(searchKeyword))
+                        if (!searchKeywordsBuffer.toString().contains(searchKeyword)) {
                             searchKeywordsBuffer.append(searchKeyword + ",");
+                        }
                     }
                     if (null != clickCategoryId) {
-                        if (!(clickCategoryId.toString().contains(String.valueOf(clickCategoryId))))
+                        if (!(clickCategoryId.toString().contains(String.valueOf(clickCategoryId)))) {
                             clickCategoryIdsBuffer.append(clickCategoryId + ",");
+                        }
                     }
 
                     // 去除前后，

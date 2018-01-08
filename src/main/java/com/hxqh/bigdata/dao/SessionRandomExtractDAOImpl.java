@@ -5,6 +5,8 @@ import com.hxqh.bigdata.domain.SessionRandomExtract;
 import com.hxqh.bigdata.jdbc.JDBCHelper;
 
 /**
+ * @author ocean
+ *
  * 随机抽取session的DAO实现
  */
 public class SessionRandomExtractDAOImpl implements ISessionRandomExtractDAO {
@@ -14,6 +16,7 @@ public class SessionRandomExtractDAOImpl implements ISessionRandomExtractDAO {
      *
      * @param sessionRandomExtract
      */
+    @Override
     public void insert(SessionRandomExtract sessionRandomExtract) {
         String sql = "insert into session_random_extract values(?,?,?,?,?)";
 
