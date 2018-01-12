@@ -2,6 +2,8 @@ package com.hxqh.bigdata.spark.session;
 
 import scala.math.Ordered;
 
+import java.io.Serializable;
+
 /**
  * 品类二次排序key
  * <p>
@@ -19,11 +21,20 @@ import scala.math.Ordered;
  *
  * @author Ocean Lin
  */
-public class CategorySortKey implements Ordered<CategorySortKey> {
+public class CategorySortKey implements Ordered<CategorySortKey>, Serializable {
 
     private long clickCount;
     private long orderCount;
     private long payCount;
+
+    public CategorySortKey() {
+    }
+
+    public CategorySortKey(long clickCount, long orderCount, long payCount) {
+        this.clickCount = clickCount;
+        this.orderCount = orderCount;
+        this.payCount = payCount;
+    }
 
     @Override
     public int compare(CategorySortKey that) {

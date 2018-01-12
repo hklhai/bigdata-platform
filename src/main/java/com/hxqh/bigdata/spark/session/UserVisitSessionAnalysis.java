@@ -1,10 +1,13 @@
 package com.hxqh.bigdata.spark.session;
 
 import com.alibaba.fastjson.JSONObject;
+import com.google.common.base.Optional;
 import com.hxqh.bigdata.conf.ConfigurationManager;
 import com.hxqh.bigdata.dao.ISessionAggrStatDAO;
+import com.hxqh.bigdata.dao.ITop10CategoryDAO;
 import com.hxqh.bigdata.dao.factory.DAOFactory;
 import com.hxqh.bigdata.domain.SessionAggrStat;
+import com.hxqh.bigdata.domain.Top10Category;
 import com.hxqh.bigdata.jdbc.Constants;
 import com.hxqh.bigdata.util.*;
 import org.apache.spark.Accumulator;
@@ -91,8 +94,9 @@ public class UserVisitSessionAnalysis {
          * 是不是在calculateAndPersisitAggrStat方法之后，运行一个action操作，比如count、take不正确的，需要在该方法之前
          *
          * 必须把能够触发job执行的操作，放在最终写入MySQL方法之前
+         *
+         *
          */
-        //System.out.println(filterRDDByParameter.count());
 
         // 存在countByKey不需要使用count算子触发执行
         randomExtractSession(filterRDDByParameter);
@@ -108,7 +112,7 @@ public class UserVisitSessionAnalysis {
                 return new Tuple2<>(row.getString(2), row);
             }
         });
-        getTop10Category(filterRDDByParameter, sessionid2actionRDD);
+        getTop10Category(taskid, filterRDDByParameter, sessionid2actionRDD);
 
 
         sc.close();
@@ -520,8 +524,8 @@ public class UserVisitSessionAnalysis {
 
         // 按时间比例随机抽取算法
         // 总共要抽取100个session，先按照天数，再进行平分
-        int extractNumberPerDay = 100 / dayHourCountMap.size();
         // todo 待完成
+        //int extractNumberPerDay = 100 / dayHourCountMap.size();
 
     }
 
@@ -563,7 +567,7 @@ public class UserVisitSessionAnalysis {
         long step_length_60 = Long.valueOf(StringUtils.getFieldFromConcatString(
                 value, "\\|", Constants.STEP_PERIOD_60));
 
-
+        System.out.println(visit_length_1s_3s + "======" + session_count);
         // 计算各个访问时长和访问步长的范围
         double visit_length_1s_3s_ratio = NumberUtils.formatDouble(
                 (double) visit_length_1s_3s / (double) session_count, 2);
@@ -627,7 +631,7 @@ public class UserVisitSessionAnalysis {
     }
 
 
-    private static void getTop10Category(JavaPairRDD<String, String> filterRDDByParameterRDD, JavaPairRDD<String, Row> sessionid2actionRDD) {
+    private static void getTop10Category(long taskid, JavaPairRDD<String, String> filterRDDByParameterRDD, JavaPairRDD<String, Row> sessionid2actionRDD) {
         /**
          * 第一步：获取符合条件的session访问过的所有品类
          */
@@ -671,7 +675,7 @@ public class UserVisitSessionAnalysis {
             }
         });
 
-
+        categoryidRDD = categoryidRDD.distinct();
         /**
          * 第二步：计算各品类的点击、下单和支付的次数
          */
@@ -686,7 +690,58 @@ public class UserVisitSessionAnalysis {
         // 计算各个品类的支付次数
         JavaPairRDD<Long, Long> payCategoryId2CountRDD = getPayCategoryId2CountRDD(stringRowJavaPairRDD);
 
+        /**
+         * 第三步：join各品类与它的点击、下单和支付的次数
+         *
+         * categoryidRDD中，是包含了所有的符合条件的session，访问过的品类id
+         *
+         * 已经计算出来的各品类的点击、下单和支付的次数，可能不是包含所有品类的
+         * 比如，有的品类，就只是被点击过，但是没有人下单和支付
+         *
+         * 所以，这里，就不能使用join操作，要使用leftOuterJoin操作，就是说，如果categoryidRDD不能
+         * join到自己的某个数据，比如点击、或下单、或支付次数，那么该categoryidRDD还是要保留下来的
+         * 只不过，没有join到的那个数据，就是0了
+         *
+         */
+        JavaPairRDD<Long, String> categoryid2countRDD = joinCategoryAndData(categoryidRDD, clickCategoryId2CountRDD,
+                orderCategoryId2CountRDD, payCategoryId2CountRDD);
 
+
+        /**
+         * 第四步：自定义二次排序key
+         */
+
+        /**
+         * 第五步：将数据映射成<CategorySortKey,info>格式的RDD，然后进行二次排序（降序）
+         */
+        JavaPairRDD<CategorySortKey, String> sortedCategoryCountRDD = categoryid2countRDD.mapToPair(new PairFunction<Tuple2<Long, String>, CategorySortKey, String>() {
+            @Override
+            public Tuple2<CategorySortKey, String> call(Tuple2<Long, String> tuple) throws Exception {
+                String countInfo = tuple._2;
+                long clickCount = Long.valueOf(StringUtils.getFieldFromConcatString(countInfo, "\\|", Constants.FIELD_CLICK_COUNT));
+                long orderCount = Long.valueOf(StringUtils.getFieldFromConcatString(countInfo, "\\|", Constants.FIELD_ORDER_COUNT));
+                long payCount = Long.valueOf(StringUtils.getFieldFromConcatString(countInfo, "\\|", Constants.FIELD_PAY_COUNT));
+                CategorySortKey sortKey = new CategorySortKey(clickCount, orderCount, payCount);
+                return new Tuple2<>(sortKey, countInfo);
+            }
+        }).sortByKey(false);
+
+        /**
+         * 第六步：用take(10)取出top10热门品类，并写入MySQL
+         */
+        List<Tuple2<CategorySortKey, String>> top10RDD = sortedCategoryCountRDD.take(10);
+
+        ITop10CategoryDAO top10CategoryDAO = DAOFactory.getTop10CategoryDAO();
+
+        for (Tuple2<CategorySortKey, String> tuple : top10RDD) {
+            String countInfo = tuple._2;
+            long categoryid = Long.valueOf(StringUtils.getFieldFromConcatString(countInfo, "\\|", Constants.FIELD_CATEGORY_ID));
+            long clickCount = Long.valueOf(StringUtils.getFieldFromConcatString(countInfo, "\\|", Constants.FIELD_CLICK_COUNT));
+            long orderCount = Long.valueOf(StringUtils.getFieldFromConcatString(countInfo, "\\|", Constants.FIELD_ORDER_COUNT));
+            long payCount = Long.valueOf(StringUtils.getFieldFromConcatString(countInfo, "\\|", Constants.FIELD_PAY_COUNT));
+            Top10Category category = new Top10Category(taskid, categoryid, clickCount, orderCount, payCount);
+            top10CategoryDAO.insert(category);
+        }
     }
 
     private static JavaPairRDD<Long, Long> getClickCategoryId2CountRDD(JavaPairRDD<String, Row> stringRowJavaPairRDD) {
@@ -694,7 +749,7 @@ public class UserVisitSessionAnalysis {
             @Override
             public Boolean call(Tuple2<String, Row> v1) throws Exception {
                 Row row = v1._2;
-                return Long.valueOf(row.getLong(6)) != null ? true : false;
+                return row.get(6) != null ? true : false;
             }
         });
 
@@ -769,6 +824,74 @@ public class UserVisitSessionAnalysis {
             }
         });
         return payCategoryId2CountRDD;
+    }
+
+    /**
+     * 连接品类RDD与数据RDD
+     *
+     * @param categoryidRDD
+     * @param clickCategoryId2CountRDD
+     * @param orderCategoryId2CountRDD
+     * @param payCategoryId2CountRDD
+     * @return
+     */
+    private static JavaPairRDD<Long, String> joinCategoryAndData(JavaPairRDD<Long, Long> categoryidRDD, JavaPairRDD<Long, Long> clickCategoryId2CountRDD, JavaPairRDD<Long, Long> orderCategoryId2CountRDD, JavaPairRDD<Long, Long> payCategoryId2CountRDD) {
+        // 如果用leftOuterJoin，就可能出现，右边那个RDD中，join过来时，没有值
+        // 所以Tuple中的第二个值用Optional<Long>类型，就代表，可能有值，可能没有值
+
+        JavaPairRDD<Long, Tuple2<Long, Optional<Long>>> tmpJoinRDD = categoryidRDD.leftOuterJoin(clickCategoryId2CountRDD);
+        JavaPairRDD<Long, String> tmpMapRDD = tmpJoinRDD.mapToPair(new PairFunction<Tuple2<Long, Tuple2<Long, Optional<Long>>>, Long, String>() {
+            @Override
+            public Tuple2<Long, String> call(Tuple2<Long, Tuple2<Long, Optional<Long>>> tuple2) throws Exception {
+                long categoryid = tuple2._1;
+                Optional<Long> optional = tuple2._2._2;
+                long clickCount = 0L;
+                if (optional.isPresent()) {
+                    clickCount = optional.get();
+                }
+                String value = Constants.FIELD_CATEGORY_ID + "=" + categoryid + "|" +
+                        Constants.FIELD_CLICK_COUNT + "=" + clickCount;
+                return new Tuple2<>(categoryid, value);
+            }
+        });
+
+
+        tmpMapRDD = tmpMapRDD.leftOuterJoin(orderCategoryId2CountRDD).mapToPair(new PairFunction<Tuple2<Long, Tuple2<String, Optional<Long>>>, Long, String>() {
+            @Override
+            public Tuple2<Long, String> call(Tuple2<Long, Tuple2<String, Optional<Long>>> tuple) throws Exception {
+                long categoryid = tuple._1;
+                String value = tuple._2._1;
+
+                Optional<Long> optional = tuple._2._2;
+                long orderCount = 0L;
+
+                if (optional.isPresent()) {
+                    orderCount = optional.get();
+                }
+
+                value = value + "|" + Constants.FIELD_ORDER_COUNT + "=" + orderCount;
+
+                return new Tuple2<>(categoryid, value);
+            }
+        });
+
+        tmpMapRDD = tmpMapRDD.leftOuterJoin(payCategoryId2CountRDD).mapToPair(new PairFunction<Tuple2<Long, Tuple2<String, Optional<Long>>>, Long, String>() {
+            @Override
+            public Tuple2<Long, String> call(Tuple2<Long, Tuple2<String, Optional<Long>>> tuple) throws Exception {
+                long categoryid = tuple._1;
+                String value = tuple._2._1;
+                Optional<Long> optional = tuple._2._2;
+                long payCount = 0L;
+
+                if (optional.isPresent()) {
+                    payCount = optional.get();
+                }
+                value = value + "|" + Constants.FIELD_PAY_COUNT + "=" + payCount;
+                return new Tuple2<>(categoryid, value);
+            }
+        });
+
+        return tmpMapRDD;
     }
 
 }
