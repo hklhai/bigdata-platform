@@ -4,6 +4,7 @@ import com.alibaba.fastjson.JSONObject;
 import com.google.common.base.Optional;
 import com.hxqh.bigdata.conf.ConfigurationManager;
 import com.hxqh.bigdata.dao.ISessionAggrStatDAO;
+import com.hxqh.bigdata.dao.ISessionDetailDAO;
 import com.hxqh.bigdata.dao.ITop10CategoryDAO;
 import com.hxqh.bigdata.dao.ITop10SessionDAO;
 import com.hxqh.bigdata.dao.factory.DAOFactory;
@@ -51,7 +52,7 @@ import java.util.*;
  */
 public class UserVisitSessionAnalysis {
 
-    private static final Integer TOP_TEN = 10;
+    private static final Integer TOP_TEN = 3;
 
 
     public static void main(String[] args) {
@@ -1024,21 +1025,23 @@ public class UserVisitSessionAnalysis {
                 List<Tuple2<String, String>> list = new ArrayList<>();
 
                 for (String sessionCount : top10Sessions) {
-                    String sessionid = sessionCount.split(",")[0];
-                    long count = Long.valueOf(sessionCount.split(",")[1]);
+                    if (sessionCount != null) {
+                        String sessionid = sessionCount.split(",")[0];
+                        long count = Long.valueOf(sessionCount.split(",")[1]);
 
-                    // 将top10 session插入MySQL表
-                    Top10Session top10Session = new Top10Session();
-                    top10Session.setTaskid(taskId);
-                    top10Session.setCategoryid(categoryid);
-                    top10Session.setSessionid(sessionid);
-                    top10Session.setClickCount(count);
+                        // 将top10 session插入MySQL表
+                        Top10Session top10Session = new Top10Session();
+                        top10Session.setTaskid(taskId);
+                        top10Session.setCategoryid(categoryid);
+                        top10Session.setSessionid(sessionid);
+                        top10Session.setClickCount(count);
 
-                    ITop10SessionDAO top10SessionDAO = DAOFactory.getTop10SessionDAO();
-                    top10SessionDAO.insert(top10Session);
+                        ITop10SessionDAO top10SessionDAO = DAOFactory.getTop10SessionDAO();
+                        top10SessionDAO.insert(top10Session);
 
-                    // 放入list
-                    list.add(new Tuple2<>(sessionid, sessionid));
+                        // 放入list
+                        list.add(new Tuple2<>(sessionid, sessionid));
+                    }
                 }
                 return list;
             }
@@ -1067,9 +1070,11 @@ public class UserVisitSessionAnalysis {
                 sessionDetail.setOrderProductIds(row.getString(9));
                 sessionDetail.setPayCategoryIds(row.getString(10));
                 sessionDetail.setPayProductIds(row.getString(11));
+
+                ISessionDetailDAO sessionDetailDAO = DAOFactory.getSessionDetailDAO();
+                sessionDetailDAO.insert(sessionDetail);
             }
         });
-
 
 
     }
