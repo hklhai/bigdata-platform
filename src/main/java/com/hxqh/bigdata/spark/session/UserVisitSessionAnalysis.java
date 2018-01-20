@@ -24,6 +24,7 @@ import org.apache.spark.sql.DataFrame;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SQLContext;
 import org.apache.spark.sql.hive.HiveContext;
+import org.apache.spark.storage.StorageLevel;
 import scala.Tuple2;
 
 import java.util.*;
@@ -79,15 +80,28 @@ public class UserVisitSessionAnalysis {
         String task_param = rows.get(0).getString(0);
         JSONObject taskParam = JSONObject.parseObject(task_param);
         /********************************获取查询参数**********************************/
-        JavaPairRDD<String, String> fullRDD = aggByUserId(sqlContext, taskParam);
+
+        JavaRDD<Row> actionRDD = getActionRDDByDateRange(sqlContext, taskParam);
+
+        JavaPairRDD<String, Row> sessionid2actionRDD = actionRDD.mapToPair(new PairFunction<Row, String, Row>() {
+            @Override
+            public Tuple2<String, Row> call(Row row) throws Exception {
+                return new Tuple2<>(row.getString(2), row);
+            }
+        });
+
+        sessionid2actionRDD.persist(StorageLevel.MEMORY_ONLY());
+
+
+        JavaPairRDD<String, String> fullRDD = aggByUserId(sqlContext, sessionid2actionRDD);
         System.out.println("fullRDD:" + fullRDD.count());
 
         // 增加自定义累加器
         Accumulator<String> sessionAggrStatAccumulator = sc.accumulator("", new SessionAggrStatAccumulator());
 
-        JavaPairRDD<String, String> filterRDDByParameter = filterRDDByParameterAndAggrStage(taskParam, fullRDD, sessionAggrStatAccumulator);
-        System.out.println("filterRDD:" + filterRDDByParameter.count());
-
+        JavaPairRDD<String, String> filterRDDByParameterRDD = filterRDDByParameterAndAggrStage(taskParam, fullRDD, sessionAggrStatAccumulator);
+        System.out.println("filterRDD:" + filterRDDByParameterRDD.count());
+        filterRDDByParameterRDD.persist(StorageLevel.MEMORY_ONLY());
 
         /**
          * 对于Accumulator这种分布式累加计算的变量的使用
@@ -103,22 +117,18 @@ public class UserVisitSessionAnalysis {
          */
 
         // 存在countByKey不需要使用count算子触发执行
-        randomExtractSession(filterRDDByParameter);
+        randomExtractSession(filterRDDByParameterRDD);
 
         // 计算出各个范围的session占比，并写入MySQL
         calculateAndPersistAggrStat(sessionAggrStatAccumulator.value(), taskid, prop, sqlContext);
 
 
-        JavaRDD<Row> actionRDD = getActionRDDByDateRange(sqlContext, taskParam);
-        JavaPairRDD<String, Row> sessionid2actionRDD = actionRDD.mapToPair(new PairFunction<Row, String, Row>() {
-            @Override
-            public Tuple2<String, Row> call(Row row) throws Exception {
-                return new Tuple2<>(row.getString(2), row);
-            }
-        });
-
         // 生成公共的RDD：通过筛选条件的session的访问明细数据
-        JavaPairRDD<String, Row> sessionid2detailRDD = getSessionid2detailRDD(filterRDDByParameter, sessionid2actionRDD);
+        /**
+         * 通过筛选生成的访问明细数据
+         */
+        JavaPairRDD<String, Row> sessionid2detailRDD = getSessionid2detailRDD(filterRDDByParameterRDD, sessionid2actionRDD);
+        sessionid2detailRDD.persist(StorageLevel.MEMORY_ONLY());
 
         // 获取top10热门品类
         List<Tuple2<CategorySortKey, String>> top10CategoryList = getTop10Category(taskid, sessionid2detailRDD, sessionid2actionRDD);
@@ -288,27 +298,12 @@ public class UserVisitSessionAnalysis {
     /**
      * 聚合为<SessionId,SessionId_words_catagorys>形式
      *
-     * @param sqlContext
-     * @param taskParamJson
+     * @param sessionid2actionRDD
      * @return
      */
-    private static JavaPairRDD<String, String> aggByUserId(SQLContext sqlContext, JSONObject taskParamJson) {
-        // 如果要进行session粒度的数据聚合
-        // 首先要从user_visit_action表中，查询出来指定日期范围内的行为数据
-        JavaRDD<Row> actionRDD = getActionRDDByDateRange(sqlContext, taskParamJson);
+    private static JavaPairRDD<String, String> aggByUserId(SQLContext sqlContext, JavaPairRDD<String, Row> sessionid2actionRDD) {
 
-
-        // 首先，以将行为数据，按照session_id进行groupByKey分组
-        // 此时的数据的粒度就是session粒度了，然后将session粒度的数据与用户信息数据，进行join
-        // 然后就可以获取到session粒度的数据，同时呢，数据里面还包含了session对应的user的信息
-        JavaPairRDD<String, Row> pariRDD = actionRDD.mapToPair(new PairFunction<Row, String, Row>() {
-            @Override
-            public Tuple2<String, Row> call(Row row) throws Exception {
-                return new Tuple2<>(row.getString(2), row);
-            }
-        });
-        System.out.println(actionRDD.count());
-        JavaPairRDD<String, Iterable<Row>> sessionGroupRDD = pariRDD.groupByKey();
+        JavaPairRDD<String, Iterable<Row>> sessionGroupRDD = sessionid2actionRDD.groupByKey();
 
         // 对每一个session分组进行聚合，将session中所有的搜索词和点击品类都聚合起来
         // 获取的数据格式，如下：<userid,partAggrInfo(sessionid,searchKeywords,clickCategoryIds)>
