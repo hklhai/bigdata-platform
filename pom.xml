@@ -111,7 +111,11 @@
             <artifactId>junit</artifactId>
             <version>RELEASE</version>
         </dependency>
-
+        <dependency>
+            <groupId>fastutil</groupId>
+            <artifactId>fastutil</artifactId>
+            <version>5.0.9</version>
+        </dependency>
     </dependencies>
 
     <build>

@@ -20,6 +20,7 @@ import org.apache.spark.api.java.JavaPairRDD;
 import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.api.java.function.*;
+import org.apache.spark.broadcast.Broadcast;
 import org.apache.spark.sql.DataFrame;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SQLContext;
@@ -116,8 +117,14 @@ public class UserVisitSessionAnalysis {
          *
          */
 
+
+        /**
+         * 使用到了比较大的变量，每个task都会拷贝一份副本，
+         * 比较消耗内存和网络传输的性能
+         */
+
         // 存在countByKey不需要使用count算子触发执行
-        randomExtractSession(filterRDDByParameterRDD);
+        randomExtractSession(filterRDDByParameterRDD, sc);
 
         // 计算出各个范围的session占比，并写入MySQL
         calculateAndPersistAggrStat(sessionAggrStatAccumulator.value(), taskid, prop, sqlContext);
@@ -126,9 +133,19 @@ public class UserVisitSessionAnalysis {
         // 生成公共的RDD：通过筛选条件的session的访问明细数据
         /**
          * 通过筛选生成的访问明细数据
+         *
+         * 第一选择 StorageLevel.MEMORY_ONLY()
+         * 第二选择 StorageLevel.MEMORY_ONLY_SER()
+         * 第三选择 StorageLevel.MEMORY_AND_DISK()
+         * 第四选择 StorageLevel.MEMORY_AND_DISK_SER()
+         * 第五选择 StorageLevel.DISK_ONLY()
+         *
+         * 内容充足使用双副本高可靠机制
+         * StorageLevel.MEMORY_ONLY_2()
          */
         JavaPairRDD<String, Row> sessionid2detailRDD = getSessionid2detailRDD(filterRDDByParameterRDD, sessionid2actionRDD);
         sessionid2detailRDD.persist(StorageLevel.MEMORY_ONLY());
+
 
         // 获取top10热门品类
         List<Tuple2<CategorySortKey, String>> top10CategoryList = getTop10Category(taskid, sessionid2detailRDD, sessionid2actionRDD);
@@ -503,7 +520,7 @@ public class UserVisitSessionAnalysis {
         }
     }
 
-    private static void randomExtractSession(JavaPairRDD<String, String> filterRDDByParameter) {
+    private static void randomExtractSession(JavaPairRDD<String, String> filterRDDByParameter, JavaSparkContext sc) {
         // 计算每天每小时session数量
         JavaPairRDD<String, String> date_aggrInfo_RDD = filterRDDByParameter.mapToPair(new PairFunction<Tuple2<String, String>, String, String>() {
             @Override
@@ -525,7 +542,9 @@ public class UserVisitSessionAnalysis {
         Map<String, Object> date_aggrInfo_Map = date_aggrInfo_RDD.countByKey();
 
         // 第二步，按时间比例随机抽取算法，计算出每天每小时要抽取session的索引
-        Map<String, Map<String, Long>> dayHourCountMap = new HashMap<>();
+        Map<String, Map<String, Long>> dayHourCountMap = new HashMap<>(200);
+        Broadcast<Map<String, Map<String, Long>>> dayHourCountMapBroadcast = sc.broadcast(dayHourCountMap);
+
 
         for (Map.Entry<String, Object> entry : date_aggrInfo_Map.entrySet()) {
             String dateHour = entry.getKey();
@@ -546,6 +565,14 @@ public class UserVisitSessionAnalysis {
         // 总共要抽取100个session，先按照天数，再进行平分
         // todo 待完成
         //int extractNumberPerDay = 100 / dayHourCountMap.size();
+
+        /**
+         * 使用广播变量的时候
+         * 直接调用广播变量（Broadcast类型）的value() / getValue()
+         * 可以获取到之前封装的广播变量
+         */
+//        Map<String, Map<String, IntList>> dateHourExtractMap = dayHourCountMapBroadcast.value();
+
 
     }
 
