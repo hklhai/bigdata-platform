@@ -32,6 +32,8 @@ import java.util.*;
 
 /**
  * Created by Ocean lin on 2017/12/22.
+ *
+ * @author Ocean lin
  * <p>
  * 接收用户创建的分析任务，用户可能指定的条件如下：
  * <p>
@@ -61,6 +63,20 @@ public class UserVisitSessionAnalysis {
         args = new String[]{"1"};
 
         SparkConf sparkConf = new SparkConf().setMaster("local").setAppName(Constants.SPARK_APP_NAME_SESSION);
+        // 内存占比
+        sparkConf.set("spark.storage.memoryFraction", "0.5")
+                // map合并机制
+                .set("spark.shuffle.consolidateFiles", "true")
+                // map内存缓冲默认大小
+                .set("spark.shuffle.file.buffer", "64")
+                // reduce内存占比
+                .set("spark.shuffle.memoryFraction", "0.3")
+                .set("spark.reducer.maxSizeInFlight", "24")
+                .set("spark.shuffle.io.maxRetries", "60")
+                .set("spark.shuffle.io.retryWait", "60")
+                .set("spark.serializer", "org.apache.spark.serializer.KryoSerializer");
+
+
         JavaSparkContext sc = new JavaSparkContext(sparkConf);
         SQLContext sqlContext = getSQLContext(sc);
         // 生成模拟测试数据
@@ -84,12 +100,28 @@ public class UserVisitSessionAnalysis {
 
         JavaRDD<Row> actionRDD = getActionRDDByDateRange(sqlContext, taskParam);
 
-        JavaPairRDD<String, Row> sessionid2actionRDD = actionRDD.mapToPair(new PairFunction<Row, String, Row>() {
+//        JavaPairRDD<String, Row> sessionid2actionRDD = actionRDD.mapToPair(new PairFunction<Row, String, Row>() {
+//            @Override
+//            public Tuple2<String, Row> call(Row row) throws Exception {
+//                return new Tuple2<>(row.getString(2), row);
+//            }
+//        });
+
+        // 改写为mapPartitionsToPair
+        JavaPairRDD<String, Row> sessionid2actionRDD = actionRDD.mapPartitionsToPair(new PairFlatMapFunction<Iterator<Row>, String, Row>() {
             @Override
-            public Tuple2<String, Row> call(Row row) throws Exception {
-                return new Tuple2<>(row.getString(2), row);
+            public Iterable<Tuple2<String, Row>> call(Iterator<Row> rowIterator) throws Exception {
+
+                List<Tuple2<String, Row>> list = new ArrayList<>();
+                while(rowIterator.hasNext())
+                {
+                    Row row = rowIterator.next();
+                    list.add(new Tuple2<>(row.getString(2), row));
+                }
+                return list;
             }
         });
+
 
         sessionid2actionRDD.persist(StorageLevel.MEMORY_ONLY());
 
