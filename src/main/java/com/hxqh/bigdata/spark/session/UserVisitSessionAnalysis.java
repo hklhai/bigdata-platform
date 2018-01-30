@@ -818,13 +818,22 @@ public class UserVisitSessionAnalysis {
     }
 
     private static JavaPairRDD<Long, Long> getClickCategoryId2CountRDD(JavaPairRDD<String, Row> stringRowJavaPairRDD) {
+
+        /**
+         * 采用coalesce压缩数据量到100
+         *
+         * local模式不需要设置coalesce,local本地模式采用在本地线程模拟partition，本地模式设置coalesce无效
+         *
+         *
+         */
         JavaPairRDD<String, Row> clickRDD = stringRowJavaPairRDD.filter(new Function<Tuple2<String, Row>, Boolean>() {
             @Override
             public Boolean call(Tuple2<String, Row> v1) throws Exception {
                 Row row = v1._2;
                 return row.get(6) != null ? true : false;
             }
-        });
+        }).coalesce(100);
+
 
         JavaPairRDD<Long, Long> clickCategoryId2CountRDD = clickRDD.mapToPair(new PairFunction<Tuple2<String, Row>, Long, Long>() {
             @Override
