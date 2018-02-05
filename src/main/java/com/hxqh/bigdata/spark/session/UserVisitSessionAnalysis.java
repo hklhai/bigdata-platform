@@ -107,14 +107,14 @@ public class UserVisitSessionAnalysis {
 //            }
 //        });
 
+
         // 改写为mapPartitionsToPair
         JavaPairRDD<String, Row> sessionid2actionRDD = actionRDD.mapPartitionsToPair(new PairFlatMapFunction<Iterator<Row>, String, Row>() {
             @Override
             public Iterable<Tuple2<String, Row>> call(Iterator<Row> rowIterator) throws Exception {
 
                 List<Tuple2<String, Row>> list = new ArrayList<>();
-                while(rowIterator.hasNext())
-                {
+                while (rowIterator.hasNext()) {
                     Row row = rowIterator.next();
                     list.add(new Tuple2<>(row.getString(2), row));
                 }
@@ -517,6 +517,16 @@ public class UserVisitSessionAnalysis {
                 + "and date<='" + endDate + "'";
 
         DataFrame actionDF = sqlContext.sql(sql);
+
+        /**
+         * 此处易发生性能问题，
+         * 如Spark SQL默认给第一个stage设置了20个task，但是根据根据数据量及算法的复杂度
+         * 实际上需要1000个task并行执行
+         *
+         * 这里可以对Spark SQL刚查询的RDD执行repartition操作
+         */
+//        return actionDF.javaRDD().repartition(1000);
+
         System.out.println(actionDF.count());
         return actionDF.javaRDD();
     }
