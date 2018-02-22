@@ -507,6 +507,74 @@ public class UserVisitSessionAnalysis {
 //        });
 
 
+//        JavaPairRDD<Long, String> sampleRDD = userId_Session_Word_CatagoryRDD.sample(false, 0.1, 9);
+//        JavaPairRDD<Long, Long> mapSampleRDD = sampleRDD.mapToPair(new PairFunction<Tuple2<Long, String>, Long, Long>() {
+//            @Override
+//            public Tuple2<Long, Long> call(Tuple2<Long, String> tuple2) throws Exception {
+//                return new Tuple2<>(tuple2._1, 1L);
+//            }
+//        });
+//        JavaPairRDD<Long, Long> computedRDD = mapSampleRDD.reduceByKey(new Function2<Long, Long, Long>() {
+//            @Override
+//            public Long call(Long v1, Long v2) throws Exception {
+//                return v1 + v2;
+//            }
+//        });
+//        JavaPairRDD<Long, Long> revertedSampleRDD = computedRDD.mapToPair(new PairFunction<Tuple2<Long, Long>, Long, Long>() {
+//            @Override
+//            public Tuple2<Long, Long> call(Tuple2<Long, Long> tuple2) throws Exception {
+//                return new Tuple2<>(tuple2._2, tuple2._1);
+//            }
+//        });
+//        final Long userId = revertedSampleRDD.sortByKey(false).take(1).get(0)._2;
+//
+//        JavaPairRDD<Long, String> leanRDD = userId_Session_Word_CatagoryRDD.filter(new Function<Tuple2<Long, String>, Boolean>() {
+//            @Override
+//            public Boolean call(Tuple2<Long, String> v1) throws Exception {
+//                return v1._1.equals(userId);
+//            }
+//        });
+//        JavaPairRDD<Long, String> normalRDD = userId_Session_Word_CatagoryRDD.filter(new Function<Tuple2<Long, String>, Boolean>() {
+//            @Override
+//            public Boolean call(Tuple2<Long, String> v1) throws Exception {
+//                return !v1._1.equals(userId);
+//            }
+//        });
+//
+//        JavaPairRDD<Long, Tuple2<String, Row>> leanJoinRDD = leanRDD.join(userIdPairRDD);
+//        JavaPairRDD<Long, Tuple2<String, Row>> normalJoinRDD = normalRDD.join(userIdPairRDD);
+//
+//        JavaPairRDD<Long, Tuple2<String, Row>> unionRDD = leanJoinRDD.union(normalJoinRDD);
+//
+//        // 对join起来的数据进行拼接，并且返回<sessionid,fullAggrInfo>格式的数据
+//        JavaPairRDD<String, String> fullRDD = unionRDD.mapToPair(new PairFunction<Tuple2<Long, Tuple2<String, Row>>, String, String>() {
+//            @Override
+//            public Tuple2<String, String> call(Tuple2<Long, Tuple2<String, Row>> tuple) throws Exception {
+//                String aggrInfo = tuple._2._1;
+//                Row row = tuple._2._2;
+//
+//
+//                String sessionid = StringUtils.getFieldFromConcatString(
+//                        aggrInfo, "\\|", Constants.FIELD_SESSION_ID);
+//
+//                int age = row.getInt(3);
+//                String professional = row.getString(4);
+//                String city = row.getString(5);
+//                String sex = row.getString(6);
+//
+//                String fullAggrInfo = aggrInfo + "|"
+//                        + Constants.FIELD_AGE + "=" + age + "|"
+//                        + Constants.FIELD_PROFESSIONAL + "=" + professional + "|"
+//                        + Constants.FIELD_CITY + "=" + city + "|"
+//                        + Constants.FIELD_SEX + "=" + sex;
+//
+//                return new Tuple2<>(sessionid, fullAggrInfo);
+//            }
+//        });
+
+
+
+
         // 对join起来的数据进行拼接，并且返回<sessionid,fullAggrInfo>格式的数据
         JavaPairRDD<String, String> fullRDD = joinRDD.mapToPair(new PairFunction<Tuple2<Long, Tuple2<String, Row>>, String, String>() {
             @Override
