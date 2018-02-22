@@ -126,7 +126,7 @@ public class UserVisitSessionAnalysis {
         sessionid2actionRDD.persist(StorageLevel.MEMORY_ONLY());
 
 
-        JavaPairRDD<String, String> fullRDD = aggByUserId(sqlContext, sessionid2actionRDD);
+        JavaPairRDD<String, String> fullRDD = aggByUserId(sc, sqlContext, sessionid2actionRDD);
         System.out.println("fullRDD:" + fullRDD.count());
 
         // 增加自定义累加器
@@ -193,6 +193,8 @@ public class UserVisitSessionAnalysis {
     private static JavaPairRDD<String, Row> getSessionid2detailRDD(JavaPairRDD<String, String> filterRDDByParameter, JavaPairRDD<String, Row> sessionid2actionRDD) {
         // 获取符合条件的session的访问明细
         JavaPairRDD<String, Tuple2<String, Row>> joinRDD = filterRDDByParameter.join(sessionid2actionRDD);
+
+
         JavaPairRDD<String, Row> stringRowJavaPairRDD = joinRDD.mapToPair(new PairFunction<Tuple2<String, Tuple2<String, Row>>, String, Row>() {
             @Override
             public Tuple2<String, Row> call(Tuple2<String, Tuple2<String, Row>> tuple2) throws Exception {
@@ -350,7 +352,7 @@ public class UserVisitSessionAnalysis {
      * @param sessionid2actionRDD
      * @return
      */
-    private static JavaPairRDD<String, String> aggByUserId(SQLContext sqlContext, JavaPairRDD<String, Row> sessionid2actionRDD) {
+    private static JavaPairRDD<String, String> aggByUserId(JavaSparkContext sc, SQLContext sqlContext, JavaPairRDD<String, Row> sessionid2actionRDD) {
 
         JavaPairRDD<String, Iterable<Row>> sessionGroupRDD = sessionid2actionRDD.groupByKey();
 
@@ -464,6 +466,46 @@ public class UserVisitSessionAnalysis {
 
         // 将session粒度聚合数据，与用户信息进行join
         JavaPairRDD<Long, Tuple2<String, Row>> joinRDD = userId_Session_Word_CatagoryRDD.join(userIdPairRDD);
+
+
+//        /**
+//         * reduce join 转化为 map join
+//         */
+//        List<Tuple2<Long, Row>> userInfos = userIdPairRDD.collect();
+//        final Broadcast<List<Tuple2<Long, Row>>> userInfosBroadcast = sc.broadcast(userInfos);
+//        userId_Session_Word_CatagoryRDD.mapToPair(new PairFunction<Tuple2<Long, String>, String, String>() {
+//            @Override
+//            public Tuple2<String, String> call(Tuple2<Long, String> tuple2) throws Exception {
+//                List<Tuple2<Long, Row>> userInfos = userInfosBroadcast.value();
+//
+//                Map<Long, Row> userInfosMap = new HashMap<>();
+//                for (Tuple2<Long, Row> userInfo : userInfos) {
+//                    userInfosMap.put(userInfo._1, userInfo._2);
+//                }
+//
+//                // 采用下边的方式拼接即可
+//                String partAggrInfo = tuple2._2;
+//                Row userInfoRow = userInfosMap.get(tuple2._1);
+//
+//                String sessionid = StringUtils.getFieldFromConcatString(
+//                        partAggrInfo, "\\|", Constants.FIELD_SESSION_ID);
+//
+//
+//                int age = userInfoRow.getInt(3);
+//                String professional = userInfoRow.getString(4);
+//                String city = userInfoRow.getString(5);
+//                String sex = userInfoRow.getString(6);
+//
+//                String fullAggrInfo = partAggrInfo + "|"
+//                        + Constants.FIELD_AGE + "=" + age + "|"
+//                        + Constants.FIELD_PROFESSIONAL + "=" + professional + "|"
+//                        + Constants.FIELD_CITY + "=" + city + "|"
+//                        + Constants.FIELD_SEX + "=" + sex;
+//
+//                return new Tuple2<>(sessionid, fullAggrInfo);
+//            }
+//        });
+
 
         // 对join起来的数据进行拼接，并且返回<sessionid,fullAggrInfo>格式的数据
         JavaPairRDD<String, String> fullRDD = joinRDD.mapToPair(new PairFunction<Tuple2<Long, Tuple2<String, Row>>, String, String>() {
