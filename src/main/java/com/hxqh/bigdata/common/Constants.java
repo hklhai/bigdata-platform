@@ -1,4 +1,4 @@
-package com.hxqh.bigdata.jdbc;
+package com.hxqh.bigdata.common;
 
 /**
  * 常量接口
@@ -19,7 +19,8 @@ public interface Constants {
      * 项目配置相关的常量
      */
     String SPARK_LOCAL = "spark.local";
-
+    String SPARK_LOCAL_TASKID_SESSION = "spark.local.taskid.session";
+    String SPARK_LOCAL_TASKID_PAGE = "spark.local.taskid.page";
 
     /**
      * Spark作业相关的常量
@@ -72,6 +73,12 @@ public interface Constants {
     String PARAM_SEX = "sex";
     String PARAM_KEYWORDS = "keywords";
     String PARAM_CATEGORY_IDS = "categoryIds";
+
+
+    /**
+     * 页面单跳转换率
+     */
+    String SPARK_APP_NAME_PAGE = "PageOneStepConvertRateSpark";
 
 
 }

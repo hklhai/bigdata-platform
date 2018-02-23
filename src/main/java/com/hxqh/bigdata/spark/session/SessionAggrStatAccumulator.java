@@ -1,6 +1,6 @@
 package com.hxqh.bigdata.spark.session;
 
-import com.hxqh.bigdata.jdbc.Constants;
+import com.hxqh.bigdata.common.Constants;
 import com.hxqh.bigdata.util.StringUtils;
 import org.apache.spark.AccumulatorParam;
 

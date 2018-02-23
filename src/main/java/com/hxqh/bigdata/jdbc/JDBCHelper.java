@@ -1,5 +1,6 @@
 package com.hxqh.bigdata.jdbc;
 
+import com.hxqh.bigdata.common.Constants;
 import com.hxqh.bigdata.conf.ConfigurationManager;
 
 import java.sql.Connection;

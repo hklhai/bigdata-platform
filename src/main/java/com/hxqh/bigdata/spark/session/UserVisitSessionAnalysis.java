@@ -2,6 +2,7 @@ package com.hxqh.bigdata.spark.session;
 
 import com.alibaba.fastjson.JSONObject;
 import com.google.common.base.Optional;
+import com.hxqh.bigdata.common.Constants;
 import com.hxqh.bigdata.conf.ConfigurationManager;
 import com.hxqh.bigdata.dao.ISessionAggrStatDAO;
 import com.hxqh.bigdata.dao.ISessionDetailDAO;
@@ -12,7 +13,6 @@ import com.hxqh.bigdata.domain.SessionAggrStat;
 import com.hxqh.bigdata.domain.SessionDetail;
 import com.hxqh.bigdata.domain.Top10Category;
 import com.hxqh.bigdata.domain.Top10Session;
-import com.hxqh.bigdata.jdbc.Constants;
 import com.hxqh.bigdata.util.*;
 import org.apache.spark.Accumulator;
 import org.apache.spark.SparkConf;
@@ -62,7 +62,7 @@ public class UserVisitSessionAnalysis {
     public static void main(String[] args) {
         args = new String[]{"1"};
 
-        SparkConf sparkConf = new SparkConf().setMaster("local").setAppName(Constants.SPARK_APP_NAME_SESSION);
+        SparkConf sparkConf = new SparkConf().setAppName(Constants.SPARK_APP_NAME_SESSION);
         // 内存占比
         sparkConf.set("spark.storage.memoryFraction", "0.5")
                 // map合并机制
@@ -75,31 +75,30 @@ public class UserVisitSessionAnalysis {
                 .set("spark.shuffle.io.maxRetries", "60")
                 .set("spark.shuffle.io.retryWait", "60")
                 .set("spark.serializer", "org.apache.spark.serializer.KryoSerializer");
-
+        SparkUtils.setMaster(sparkConf);
 
         JavaSparkContext sc = new JavaSparkContext(sparkConf);
-        SQLContext sqlContext = getSQLContext(sc);
+        SQLContext sqlContext = SparkUtils.getSQLContext(sc.sc());
         // 生成模拟测试数据
-        mockData(sc, sqlContext);
+        SparkUtils.mockData(sc, sqlContext);
 
 
         /********************************获取查询参数**********************************/
         // 首先查询出来指定的任务，并获取任务的查询参数
-        // todo 本地执行需要配置参数
-        long taskid = ParamUtils.getTaskIdFromArgs(args);
+        long taskId = ParamUtils.getTaskIdFromArgs(args, Constants.SPARK_LOCAL_TASKID_SESSION);
         Properties prop = new Properties();
         prop.setProperty("user", ConfigurationManager.getProperty("jdbc.user"));
         prop.setProperty("password", ConfigurationManager.getProperty("jdbc.password"));
 
         DataFrame dataFrame = sqlContext.read().jdbc(ConfigurationManager.getProperty("jdbc.url"),
-                "task", new String[]{"task_id=" + taskid}, prop).select("task_param");
+                "task", new String[]{"task_id=" + taskId}, prop).select("task_param");
         List<Row> rows = dataFrame.toJavaRDD().collect();
         String task_param = rows.get(0).getString(0);
         JSONObject taskParam = JSONObject.parseObject(task_param);
         /********************************获取查询参数**********************************/
+        JavaRDD<Row> actionRDD = SparkUtils.getActionRDDByDateRange(sqlContext, taskParam);
 
-        JavaRDD<Row> actionRDD = getActionRDDByDateRange(sqlContext, taskParam);
-
+//        JavaRDD<Row> actionRDD = getActionRDDByDateRange(sqlContext, taskParam);
 //        JavaPairRDD<String, Row> sessionid2actionRDD = actionRDD.mapToPair(new PairFunction<Row, String, Row>() {
 //            @Override
 //            public Tuple2<String, Row> call(Row row) throws Exception {
@@ -159,7 +158,7 @@ public class UserVisitSessionAnalysis {
         randomExtractSession(filterRDDByParameterRDD, sc);
 
         // 计算出各个范围的session占比，并写入MySQL
-        calculateAndPersistAggrStat(sessionAggrStatAccumulator.value(), taskid, prop, sqlContext);
+        calculateAndPersistAggrStat(sessionAggrStatAccumulator.value(), taskId, prop, sqlContext);
 
 
         // 生成公共的RDD：通过筛选条件的session的访问明细数据
@@ -180,11 +179,11 @@ public class UserVisitSessionAnalysis {
 
 
         // 获取top10热门品类
-        List<Tuple2<CategorySortKey, String>> top10CategoryList = getTop10Category(taskid, sessionid2detailRDD, sessionid2actionRDD);
+        List<Tuple2<CategorySortKey, String>> top10CategoryList = getTop10Category(taskId, sessionid2detailRDD, sessionid2actionRDD);
 
 
         // 获取top10活跃session
-        getTop10Session(sc, taskid, top10CategoryList, sessionid2detailRDD);
+        getTop10Session(sc, taskId, top10CategoryList, sessionid2detailRDD);
 
         sc.close();
     }
@@ -736,41 +735,41 @@ public class UserVisitSessionAnalysis {
     }
 
 
-    /**
-     * 范围过滤
-     *
-     * @param sqlContext
-     * @param taskParamJson
-     * @return
-     */
-    private static JavaRDD<Row> getActionRDDByDateRange(SQLContext sqlContext, JSONObject taskParamJson) {
-
-        String sql_allData = "select * from user_visit_action ";
-        DataFrame allDataDF = sqlContext.sql(sql_allData);
-        System.out.println(allDataDF.count());
-
-        String startDate = ParamUtils.getParam(taskParamJson, Constants.PARAM_START_DATE);
-        String endDate = ParamUtils.getParam(taskParamJson, Constants.PARAM_END_DATE);
-
-        String sql = "select * "
-                + "from user_visit_action "
-                + "where date>='" + startDate + "' "
-                + "and date<='" + endDate + "'";
-
-        DataFrame actionDF = sqlContext.sql(sql);
-
-        /**
-         * 此处易发生性能问题，
-         * 如Spark SQL默认给第一个stage设置了20个task，但是根据根据数据量及算法的复杂度
-         * 实际上需要1000个task并行执行
-         *
-         * 这里可以对Spark SQL刚查询的RDD执行repartition操作
-         */
-//        return actionDF.javaRDD().repartition(1000);
-
-        System.out.println(actionDF.count());
-        return actionDF.javaRDD();
-    }
+//    /**
+//     * 范围过滤
+//     *
+//     * @param sqlContext
+//     * @param taskParamJson
+//     * @return
+//     */
+//    private static JavaRDD<Row> getActionRDDByDateRange(SQLContext sqlContext, JSONObject taskParamJson) {
+//
+//        String sql_allData = "select * from user_visit_action ";
+//        DataFrame allDataDF = sqlContext.sql(sql_allData);
+//        System.out.println(allDataDF.count());
+//
+//        String startDate = ParamUtils.getParam(taskParamJson, Constants.PARAM_START_DATE);
+//        String endDate = ParamUtils.getParam(taskParamJson, Constants.PARAM_END_DATE);
+//
+//        String sql = "select * "
+//                + "from user_visit_action "
+//                + "where date>='" + startDate + "' "
+//                + "and date<='" + endDate + "'";
+//
+//        DataFrame actionDF = sqlContext.sql(sql);
+//
+//        /**
+//         * 此处易发生性能问题，
+//         * 如Spark SQL默认给第一个stage设置了20个task，但是根据根据数据量及算法的复杂度
+//         * 实际上需要1000个task并行执行
+//         *
+//         * 这里可以对Spark SQL刚查询的RDD执行repartition操作
+//         */
+////        return actionDF.javaRDD().repartition(1000);
+//
+//        System.out.println(actionDF.count());
+//        return actionDF.javaRDD();
+//    }
 
 
     /**
