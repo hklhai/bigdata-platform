@@ -675,6 +675,37 @@ public class UserVisitSessionAnalysis {
 //        });
 
 
+//        /**
+//         * 使用随机数与扩容表进行join
+//         */
+//        JavaPairRDD<String, Row> expandedRDD = userIdPairRDD.flatMapToPair(new PairFlatMapFunction<Tuple2<Long, Row>, String, Row>() {
+//            @Override
+//            public Iterable<Tuple2<String, Row>> call(Tuple2<Long, Row> tuple2) throws Exception {
+//                List<Tuple2<String, Row>> list = new ArrayList<>();
+//                for (int i = 0; i < 10; i++) {
+//                    list.add(new Tuple2<>(i + "_" + tuple2._1, tuple2._2));
+//                }
+//                return list;
+//            }
+//        });
+//
+//
+//        JavaPairRDD<String, String> expandedSessionRDD = userId_Session_Word_CatagoryRDD.flatMapToPair(new PairFlatMapFunction<Tuple2<Long, String>, String, String>() {
+//            @Override
+//            public Iterable<Tuple2<String, String>> call(Tuple2<Long, String> tuple2) throws Exception {
+//                List<Tuple2<String, String>> list = new ArrayList<>();
+//                for (int i = 0; i < 10; i++) {
+//                    Random random = new Random();
+//                    int prefix = random.nextInt(100);
+//                    list.add(new Tuple2<>(prefix + "_" + tuple2._1, tuple2._2));
+//                }
+//                return list;
+//            }
+//        });
+//
+//        JavaPairRDD<String, Tuple2<Row, String>> join = expandedRDD.join(expandedSessionRDD);
+
+
         // 对join起来的数据进行拼接，并且返回<sessionid,fullAggrInfo>格式的数据
         JavaPairRDD<String, String> fullRDD = joinRDD.mapToPair(new PairFunction<Tuple2<Long, Tuple2<String, Row>>, String, String>() {
             @Override
