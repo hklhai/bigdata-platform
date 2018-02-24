@@ -23,7 +23,7 @@ public interface Constants {
     String SPARK_LOCAL_TASKID_SESSION = "spark.local.taskid.session";
     String SPARK_LOCAL_TASKID_PAGE = "spark.local.taskid.page";
     String SPARK_LOCAL_TASKID_PRODUCT = "spark.local.taskid.product";
-
+    String SPARK_LOCAL_TASKID_AREA = "spark.local.taskid.area";
     /**
      * Spark作业相关的常量
      */

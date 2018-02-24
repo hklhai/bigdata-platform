@@ -48,22 +48,22 @@ public class GroupConcatDistinctUDAF extends UserDefinedAggregateFunction {
 
     @Override
     public StructType inputSchema() {
-        return null;
+        return inputSchema;
     }
 
     @Override
     public StructType bufferSchema() {
-        return null;
+        return bufferSchema;
     }
 
     @Override
     public DataType dataType() {
-        return null;
+        return dataType;
     }
 
     @Override
     public boolean deterministic() {
-        return false;
+        return deterministic;
     }
 
 
