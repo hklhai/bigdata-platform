@@ -13,14 +13,16 @@ public interface Constants {
     String JDBC_URL = "jdbc.url";
     String JDBC_USER = "jdbc.user";
     String JDBC_PASSWORD = "jdbc.password";
-
-
+    String JDBC_URL_PROD = "jdbc.url.product";
+    String JDBC_USER_PROD = "jdbc.user.product";
+    String JDBC_PASSWORD_PROD = "jdbc.password.product";
     /**
      * 项目配置相关的常量
      */
     String SPARK_LOCAL = "spark.local";
     String SPARK_LOCAL_TASKID_SESSION = "spark.local.taskid.session";
     String SPARK_LOCAL_TASKID_PAGE = "spark.local.taskid.page";
+    String SPARK_LOCAL_TASKID_PRODUCT = "spark.local.taskid.product";
 
     /**
      * Spark作业相关的常量
@@ -79,6 +81,10 @@ public interface Constants {
      * 页面单跳转换率
      */
     String SPARK_APP_NAME_PAGE = "PageOneStepConvertRateSpark";
+    String PARAM_TARGET_PAGE_FLOW = "targetPageFlow";
+
+
+    String SPARK_APP_NAME_PRODUCT = "AreaTop3ProductSpark";
 
 
 }

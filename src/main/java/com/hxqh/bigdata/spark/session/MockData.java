@@ -18,6 +18,8 @@ import java.util.*;
  */
 public class MockData {
 
+    private static final int NUM = 100;
+
     /**
      * 模拟数据
      *
@@ -34,14 +36,14 @@ public class MockData {
         String[] actions = new String[]{"search", "click", "order", "pay"};
         Random random = new Random();
 
-        for (int i = 0; i < 100; i++) {
-            long userid = random.nextInt(100);
+        for (int i = 0; i < NUM; i++) {
+            long userid = random.nextInt(NUM);
 
             for (int j = 0; j < 10; j++) {
                 String sessionid = UUID.randomUUID().toString().replace("-", "");
                 String baseActionTime = date + " " + random.nextInt(23);
 
-                for (int k = 0; k < random.nextInt(100); k++) {
+                for (int k = 0; k < random.nextInt(NUM); k++) {
                     long pageid = random.nextInt(10);
                     String actionTime = baseActionTime + ":" + StringUtils.fulfuill(String.valueOf(random.nextInt(59))) + ":" + StringUtils.fulfuill(String.valueOf(random.nextInt(59)));
                     String searchKeyword = null;
@@ -56,21 +58,21 @@ public class MockData {
                     if ("search".equals(action)) {
                         searchKeyword = searchKeywords[random.nextInt(10)];
                     } else if ("click".equals(action)) {
-                        clickCategoryId = Long.valueOf(String.valueOf(random.nextInt(100)));
-                        clickProductId = Long.valueOf(String.valueOf(random.nextInt(100)));
+                        clickCategoryId = Long.valueOf(String.valueOf(random.nextInt(NUM)));
+                        clickProductId = Long.valueOf(String.valueOf(random.nextInt(NUM)));
                     } else if ("order".equals(action)) {
-                        orderCategoryIds = String.valueOf(random.nextInt(100));
-                        orderProductIds = String.valueOf(random.nextInt(100));
+                        orderCategoryIds = String.valueOf(random.nextInt(NUM));
+                        orderProductIds = String.valueOf(random.nextInt(NUM));
                     } else if ("pay".equals(action)) {
-                        payCategoryIds = String.valueOf(random.nextInt(100));
-                        payProductIds = String.valueOf(random.nextInt(100));
+                        payCategoryIds = String.valueOf(random.nextInt(NUM));
+                        payProductIds = String.valueOf(random.nextInt(NUM));
                     }
 
                     Row row = RowFactory.create(date, userid, sessionid,
                             pageid, actionTime, searchKeyword,
                             clickCategoryId, clickProductId,
                             orderCategoryIds, orderProductIds,
-                            payCategoryIds, payProductIds);
+                            payCategoryIds, payProductIds, random.nextInt(10));
                     rows.add(row);
                 }
             }
@@ -90,7 +92,9 @@ public class MockData {
                 DataTypes.createStructField("order_category_ids", DataTypes.StringType, true),
                 DataTypes.createStructField("order_product_ids", DataTypes.StringType, true),
                 DataTypes.createStructField("pay_category_ids", DataTypes.StringType, true),
-                DataTypes.createStructField("pay_product_ids", DataTypes.StringType, true)));
+                DataTypes.createStructField("pay_product_ids", DataTypes.StringType, true),
+                DataTypes.createStructField("city_id", DataTypes.LongType, true)));
+
 
         DataFrame df = sqlContext.createDataFrame(rowsRDD, schema);
 
@@ -105,13 +109,13 @@ public class MockData {
 
         rows.clear();
         String[] sexes = new String[]{"male", "female"};
-        for (int i = 0; i < 100; i++) {
+        for (int i = 0; i < NUM; i++) {
             long userid = i;
             String username = "user" + i;
             String name = "name" + i;
             int age = random.nextInt(60);
-            String professional = "professional" + random.nextInt(100);
-            String city = "city" + random.nextInt(100);
+            String professional = "professional" + random.nextInt(NUM);
+            String city = "city" + random.nextInt(NUM);
             String sex = sexes[random.nextInt(2)];
 
             Row row = RowFactory.create(userid, username, name, age,
@@ -136,6 +140,39 @@ public class MockData {
         }
 
         df2.registerTempTable("user_info");
+
+
+        /**
+         * ==================================================================
+         */
+        rows.clear();
+
+        int[] productStatus = new int[]{0, 1};
+
+        for (int i = 0; i < NUM; i++) {
+            long productId = i;
+            String productName = "product" + i;
+            String extendInfo = "{\"product_status\": " + productStatus[random.nextInt(2)] + "}";
+
+            Row row = RowFactory.create(productId, productName, extendInfo);
+            rows.add(row);
+        }
+
+        rowsRDD = sc.parallelize(rows);
+
+        StructType schema3 = DataTypes.createStructType(Arrays.asList(
+                DataTypes.createStructField("product_id", DataTypes.LongType, true),
+                DataTypes.createStructField("product_name", DataTypes.StringType, true),
+                DataTypes.createStructField("extend_info", DataTypes.StringType, true)));
+
+        DataFrame df3 = sqlContext.createDataFrame(rowsRDD, schema3);
+        for (Row _row : df3.take(1)) {
+            System.out.println(_row);
+        }
+
+        df3.registerTempTable("product_info");
+
+
     }
 
 }

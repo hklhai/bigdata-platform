@@ -8,7 +8,7 @@ import com.hxqh.bigdata.dao.ISessionAggrStatDAO;
 import com.hxqh.bigdata.dao.ISessionDetailDAO;
 import com.hxqh.bigdata.dao.ITop10CategoryDAO;
 import com.hxqh.bigdata.dao.ITop10SessionDAO;
-import com.hxqh.bigdata.dao.factory.DAOFactory;
+import com.hxqh.bigdata.dao.factory.DaoFactory;
 import com.hxqh.bigdata.domain.SessionAggrStat;
 import com.hxqh.bigdata.domain.SessionDetail;
 import com.hxqh.bigdata.domain.Top10Category;
@@ -955,7 +955,7 @@ public class UserVisitSessionAnalysis {
         sessionAggrStat.setStep_length_30_60_ratio(step_length_30_60_ratio);
         sessionAggrStat.setStep_length_60_ratio(step_length_60_ratio);
         // 调用对应的DAO插入统计结果
-        ISessionAggrStatDAO sessionAggrStatDAO = DAOFactory.getSessionAggrStatDAO();
+        ISessionAggrStatDAO sessionAggrStatDAO = DaoFactory.getSessionAggrStatDAO();
         sessionAggrStatDAO.insert(sessionAggrStat);
     }
 
@@ -1052,7 +1052,7 @@ public class UserVisitSessionAnalysis {
          */
         List<Tuple2<CategorySortKey, String>> top10RDD = sortedCategoryCountRDD.take(10);
 
-        ITop10CategoryDAO top10CategoryDAO = DAOFactory.getTop10CategoryDAO();
+        ITop10CategoryDAO top10CategoryDAO = DaoFactory.getTop10CategoryDAO();
 
         for (Tuple2<CategorySortKey, String> tuple : top10RDD) {
             String countInfo = tuple._2;
@@ -1349,7 +1349,7 @@ public class UserVisitSessionAnalysis {
                         top10Session.setSessionid(sessionid);
                         top10Session.setClickCount(count);
 
-                        ITop10SessionDAO top10SessionDAO = DAOFactory.getTop10SessionDAO();
+                        ITop10SessionDAO top10SessionDAO = DaoFactory.getTop10SessionDAO();
                         top10SessionDAO.insert(top10Session);
 
                         // 放入list
@@ -1384,7 +1384,7 @@ public class UserVisitSessionAnalysis {
                 sessionDetail.setPayCategoryIds(row.getString(10));
                 sessionDetail.setPayProductIds(row.getString(11));
 
-                ISessionDetailDAO sessionDetailDAO = DAOFactory.getSessionDetailDAO();
+                ISessionDetailDAO sessionDetailDAO = DaoFactory.getSessionDetailDAO();
                 sessionDetailDAO.insert(sessionDetail);
             }
         });
