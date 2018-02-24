@@ -12,6 +12,9 @@ public class AdUserClickCount {
     private long adid;
     private long clickCount;
 
+    public AdUserClickCount() {
+    }
+
     public AdUserClickCount(String date, long userid, long adid, long clickCount) {
         this.date = date;
         this.userid = userid;

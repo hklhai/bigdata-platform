@@ -83,4 +83,41 @@ public class AdUserClickCountDAOImpl implements IAdUserClickCountDAO {
         jdbcHelper.executeBatch(updateSQL, updateParamsList);
     }
 
+    /**
+     * 根据多个key查询用户广告点击量
+     *
+     * @param date   日期
+     * @param userid 用户id
+     * @param adid   广告id
+     * @return
+     */
+    @Override
+    public int findClickCountByMultiKey(String date, long userid, long adid) {
+        String sql = "SELECT click_count "
+                + "FROM ad_user_click_count "
+                + "WHERE date=? "
+                + "AND user_id=? "
+                + "AND ad_id=?";
+
+        Object[] params = new Object[]{date, userid, adid};
+
+        final AdUserClickCountQueryResult queryResult = new AdUserClickCountQueryResult();
+
+        JDBCHelper jdbcHelper = JDBCHelper.getInstance();
+        jdbcHelper.executeQuery(sql, params, new JDBCHelper.QueryCallback() {
+
+            @Override
+            public void process(ResultSet rs) throws Exception {
+                if (rs.next()) {
+                    int clickCount = rs.getInt(1);
+                    queryResult.setClickCount(clickCount);
+                }
+            }
+        });
+
+        int clickCount = queryResult.getClickCount();
+
+        return clickCount;
+    }
+
 }
