@@ -86,5 +86,12 @@ public interface Constants {
 
     String SPARK_APP_NAME_PRODUCT = "AreaTop3ProductSpark";
 
+    /**
+     * 广告点击流量实时统计
+     */
+    String SPARK_APP_NAME_AD = "AdClickRealTimeStatSpark";
+
+    String KAFKA_METADATA_BROKER_LIST = "kafka.metadata.broker.list";
+    String KAFKA_TOPICS = "kafka.topics";
 
 }
