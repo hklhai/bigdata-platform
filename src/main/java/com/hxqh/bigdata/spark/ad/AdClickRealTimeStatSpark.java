@@ -2,11 +2,15 @@ package com.hxqh.bigdata.spark.ad;
 
 import com.hxqh.bigdata.common.Constants;
 import com.hxqh.bigdata.conf.ConfigurationManager;
+import com.hxqh.bigdata.domain.AdUserClickCount;
 import com.hxqh.bigdata.util.DateUtils;
 import kafka.serializer.StringDecoder;
 import org.apache.spark.SparkConf;
+import org.apache.spark.api.java.JavaPairRDD;
+import org.apache.spark.api.java.function.Function;
 import org.apache.spark.api.java.function.Function2;
 import org.apache.spark.api.java.function.PairFunction;
+import org.apache.spark.api.java.function.VoidFunction;
 import org.apache.spark.streaming.Durations;
 import org.apache.spark.streaming.api.java.JavaPairDStream;
 import org.apache.spark.streaming.api.java.JavaPairInputDStream;
@@ -116,6 +120,7 @@ public class AdClickRealTimeStatSpark {
         // （每个batch中）每天每个用户对每个广告的点击量
         JavaPairDStream<String, Long> dailyUserAdClickCountDStream = dailyUserAdClickDStream.reduceByKey(new Function2<Long, Long, Long>() {
             private static final long serialVersionUID = 1L;
+
             @Override
             public Long call(Long v1, Long v2) throws Exception {
                 return v1 + v2;
@@ -124,7 +129,36 @@ public class AdClickRealTimeStatSpark {
 
         // dailyUserAdClickCountDStream DStream 源源不断的，每个5s的batch中，当天每个用户对每支广告的点击次数
         // <yyyyMMdd_userid_adid, clickCount>
+        dailyUserAdClickCountDStream.foreachRDD(new Function<JavaPairRDD<String, Long>, Void>() {
+            @Override
+            public Void call(JavaPairRDD<String, Long> rdd) throws Exception {
+                rdd.foreachPartition(new VoidFunction<Iterator<Tuple2<String, Long>>>() {
+                    @Override
+                    public void call(Iterator<Tuple2<String, Long>> iterator) throws Exception {
+                        // 对每个分区的数据就去获取一次连接对象
+                        // 每次都是从连接池中获取，而不是每次都创建
+                        // 写数据库操作，性能已经提到最高
+                        List<AdUserClickCount> adUserClickCounts = new ArrayList<>();
+                        while (iterator.hasNext()) {
+                            Tuple2<String, Long> tuple = iterator.next();
 
+                            String[] keySplited = tuple._1.split("_");
+                            String date = DateUtils.formatDate(DateUtils.parseDateKey(keySplited[0]));
+                            // yyyy-MM-dd
+                            long userid = Long.valueOf(keySplited[1]);
+                            long adid = Long.valueOf(keySplited[2]);
+                            long clickCount = tuple._2;
+                            AdUserClickCount adUserClickCount = new AdUserClickCount(date, userid, adid, clickCount);
+
+                            adUserClickCounts.add(adUserClickCount);
+                        }
+                    }
+                });
+
+
+                return null;
+            }
+        });
 
 
         // 构建完spark streaming上下文之后，记得要进行上下文的启动、等待执行结束、关闭

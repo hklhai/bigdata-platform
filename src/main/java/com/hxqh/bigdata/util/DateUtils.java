@@ -160,4 +160,19 @@ public class DateUtils {
         }
         return null;
     }
+
+    /**
+     * 格式化日期key
+     *
+     * @param datekey
+     * @return
+     */
+    public static Date parseDateKey(String datekey) {
+        try {
+            return DATEKEY_FORMAT.parse(datekey);
+        } catch (ParseException e) {
+            e.printStackTrace();
+        }
+        return null;
+    }
 }

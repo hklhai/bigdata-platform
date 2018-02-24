@@ -17,7 +17,6 @@ public class DaoFactory {
         return new Top10CategoryDAOImpl();
     }
 
-
     public static ITop10SessionDAO getTop10SessionDAO() {
         return new Top10SessionDAOImpl();
     }
@@ -33,5 +32,10 @@ public class DaoFactory {
     public static IAreaTop3ProductDAO getAreaTop3ProductDAO() {
         return new AreaTop3ProductDAOImpl();
     }
+
+    public static IAdUserClickCountDAO getAdUserClickCountDAO() {
+        return new AdUserClickCountDAOImpl();
+    }
+
 
 }
