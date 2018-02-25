@@ -12,6 +12,16 @@ public class AdProvinceTop3 {
     private long adid;
     private long clickCount;
 
+    public AdProvinceTop3() {
+    }
+
+    public AdProvinceTop3(String date, String province, long adid, long clickCount) {
+        this.date = date;
+        this.province = province;
+        this.adid = adid;
+        this.clickCount = clickCount;
+    }
+
     public String getDate() {
         return date;
     }

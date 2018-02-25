@@ -13,6 +13,17 @@ public class AdClickTrend {
     private long adid;
     private long clickCount;
 
+    public AdClickTrend() {
+    }
+
+    public AdClickTrend(String date, String hour, String minute, long adid, long clickCount) {
+        this.date = date;
+        this.hour = hour;
+        this.minute = minute;
+        this.adid = adid;
+        this.clickCount = clickCount;
+    }
+
     public String getDate() {
         return date;
     }

@@ -47,4 +47,11 @@ public class DaoFactory {
         return new AdStatDAOImpl();
     }
 
+    public static IAdProvinceTop3DAO getAdProvinceTop3DAO() {
+        return new AdProvinceTop3DAOImpl();
+    }
+
+    public static IAdClickTrendDAO getAdClickTrendDAO() {
+        return new AdClickTrendDAOImpl();
+    }
 }
