@@ -91,7 +91,7 @@ public interface Constants {
      */
     String SPARK_APP_NAME_AD = "AdClickRealTimeStatSpark";
 
-    String KAFKA_METADATA_BROKER_LIST = "kafka.metadata.broker.list";
+    String KAFKA_METADATA_BROKER_LIST = "metadata.broker.list";
     String KAFKA_TOPICS = "kafka.topics";
 
 }

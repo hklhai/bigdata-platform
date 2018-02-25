@@ -47,7 +47,9 @@ public class JDBCHelper {
         return instance;
     }
 
-    // 数据库连接池
+    /**
+     * 数据库连接池
+     */
     private LinkedList<Connection> datasource = new LinkedList<>();
 
     /**
@@ -71,7 +73,7 @@ public class JDBCHelper {
             String user = null;
             String password = null;
 
-            if(local) {
+            if (local) {
                 url = ConfigurationManager.getProperty(Constants.JDBC_URL);
                 user = ConfigurationManager.getProperty(Constants.JDBC_USER);
                 password = ConfigurationManager.getProperty(Constants.JDBC_PASSWORD);
@@ -128,13 +130,16 @@ public class JDBCHelper {
 
         try {
             conn = getConnection();
+            conn.setAutoCommit(false);
             pstmt = conn.prepareStatement(sql);
-
-            for (int i = 0; i < params.length; i++) {
-                pstmt.setObject(i + 1, params[i]);
+            if (params != null && params.length > 0) {
+                for (int i = 0; i < params.length; i++) {
+                    pstmt.setObject(i + 1, params[i]);
+                }
             }
 
             rtn = pstmt.executeUpdate();
+            conn.commit();
         } catch (Exception e) {
             e.printStackTrace();
         } finally {
@@ -162,9 +167,10 @@ public class JDBCHelper {
         try {
             conn = getConnection();
             pstmt = conn.prepareStatement(sql);
-
-            for (int i = 0; i < params.length; i++) {
-                pstmt.setObject(i + 1, params[i]);
+            if (params != null && params.length > 0) {
+                for (int i = 0; i < params.length; i++) {
+                    pstmt.setObject(i + 1, params[i]);
+                }
             }
 
             rs = pstmt.executeQuery();
@@ -211,13 +217,14 @@ public class JDBCHelper {
             pstmt = conn.prepareStatement(sql);
 
             // 第二步：使用PreparedStatement.addBatch()方法加入批量的SQL参数
-            for (Object[] params : paramsList) {
-                for (int i = 0; i < params.length; i++) {
-                    pstmt.setObject(i + 1, params[i]);
+            if (paramsList != null && paramsList.size() > 0) {
+                for (Object[] params : paramsList) {
+                    for (int i = 0; i < params.length; i++) {
+                        pstmt.setObject(i + 1, params[i]);
+                    }
+                    pstmt.addBatch();
                 }
-                pstmt.addBatch();
             }
-
             // 第三步：使用PreparedStatement.executeBatch()方法，执行批量的SQL语句
             rtn = pstmt.executeBatch();
 
@@ -225,6 +232,10 @@ public class JDBCHelper {
             conn.commit();
         } catch (Exception e) {
             e.printStackTrace();
+        } finally {
+            if (conn != null) {
+                datasource.push(conn);
+            }
         }
 
         return rtn;

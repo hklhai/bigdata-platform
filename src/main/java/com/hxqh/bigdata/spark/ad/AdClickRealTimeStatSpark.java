@@ -48,6 +48,9 @@ public class AdClickRealTimeStatSpark {
         SparkConf sparkConf = new SparkConf()
                 .setMaster("local[2]")
                 .setAppName(Constants.SPARK_APP_NAME_AD);
+        sparkConf.set("spark.streaming.blockInterval", "50");
+
+//        sparkConf.set("spark.serializer", "org.apache.spark.serializer.KryoSerializer");
 
         // spark streaming的上下文是构建JavaStreamingContext对象
         // 而不是像之前的JavaSparkContext、SQLContext/HiveContext
@@ -65,6 +68,8 @@ public class AdClickRealTimeStatSpark {
         // 每隔5秒钟，咱们的spark streaming作业就会收集最近5秒内的数据源接收过来的数据
         JavaStreamingContext javaStreamingContext = new JavaStreamingContext(sparkConf, Durations.seconds(5));
 
+        // 设置高可用 对updateByKey，滑动窗口操作有效
+        javaStreamingContext.checkpoint("hdfs://spark02:9000/streaming_checkpoint");
 
         // 正式开始进行代码的编写
         // 实现咱们需要的实时计算的业务逻辑和功能
@@ -74,9 +79,8 @@ public class AdClickRealTimeStatSpark {
 
         // 构建kafka参数map
         // 主要要放置的就是，你要连接的kafka集群的地址（broker集群的地址列表）
-        Map<String, String> kafkaParams = new HashMap<>();
-        kafkaParams.put(Constants.KAFKA_METADATA_BROKER_LIST,
-                ConfigurationManager.getProperty(Constants.KAFKA_METADATA_BROKER_LIST));
+        Map<String, String> kafkaParams = new HashMap<>(10);
+        kafkaParams.put(Constants.KAFKA_METADATA_BROKER_LIST, ConfigurationManager.getProperty(Constants.KAFKA_METADATA_BROKER_LIST));
 
         // 构建topic set
         String kafkaTopics = ConfigurationManager.getProperty(Constants.KAFKA_TOPICS);
@@ -97,6 +101,9 @@ public class AdClickRealTimeStatSpark {
                 StringDecoder.class,
                 kafkaParams,
                 topics);
+
+        // 重分区为1000
+        // adRealTimeLogDStream.repartition(1000);
 
 
         // 根据动态黑名单进行数据过滤
