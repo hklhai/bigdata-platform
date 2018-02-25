@@ -9,7 +9,7 @@ import java.util.List;
 /**
  * 各区域top3热门商品DAO实现类
  *
- * @author Administrator
+ * @author Lin
  */
 public class AreaTop3ProductDAOImpl implements IAreaTop3ProductDAO {
 

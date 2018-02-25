@@ -6,6 +6,8 @@ import com.hxqh.bigdata.jdbc.JDBCHelper;
 
 /**
  * top10品类DAO实现
+ *
+ * @author Lin
  */
 public class Top10CategoryDAOImpl implements ITop10CategoryDAO {
 

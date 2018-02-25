@@ -5,6 +5,8 @@ import com.hxqh.bigdata.domain.SessionAggrStat;
 
 /**
  * session聚合统计模块DAO接口
+ *
+ * @author Lin
  */
 public interface ISessionAggrStatDAO {
 

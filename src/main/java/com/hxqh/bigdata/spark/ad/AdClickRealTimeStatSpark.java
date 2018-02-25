@@ -4,9 +4,11 @@ import com.google.common.base.Optional;
 import com.hxqh.bigdata.common.Constants;
 import com.hxqh.bigdata.conf.ConfigurationManager;
 import com.hxqh.bigdata.dao.IAdBlacklistDAO;
+import com.hxqh.bigdata.dao.IAdStatDAO;
 import com.hxqh.bigdata.dao.IAdUserClickCountDAO;
 import com.hxqh.bigdata.dao.factory.DaoFactory;
 import com.hxqh.bigdata.domain.AdBlacklist;
+import com.hxqh.bigdata.domain.AdStat;
 import com.hxqh.bigdata.domain.AdUserClickCount;
 import com.hxqh.bigdata.util.DateUtils;
 import kafka.serializer.StringDecoder;
@@ -102,6 +104,17 @@ public class AdClickRealTimeStatSpark {
         generateDynamicBlacklist(filteredAdRealTimeLogDStream);
 
 
+        // 业务功能一：计算广告点击流量实时统计结果（yyyyMMdd_province_city_adid,clickCount） (最粗)
+        JavaPairDStream<String, Long> adRealTimeStatDStream = calculateRealTimeStat(filteredAdRealTimeLogDStream);
+
+
+        // 业务功能二：实时统计每天每个省份top3热门广告 (中)
+
+
+        // 业务功能三：实时统计每天每个广告在最近1小时的滑动窗口内的点击趋势（每分钟的点击量） （精细）
+
+
+
         // 构建完spark streaming上下文之后，记得要进行上下文的启动、等待执行结束、关闭
         javaStreamingContext.start();
         javaStreamingContext.awaitTermination();
@@ -159,6 +172,7 @@ public class AdClickRealTimeStatSpark {
                         JavaPairRDD<Long, Tuple2<Tuple2<String, String>, Optional<Boolean>>> filteredRDD = joinedRDD.filter(
                                 new Function<Tuple2<Long, Tuple2<Tuple2<String, String>, Optional<Boolean>>>, Boolean>() {
                                     private static final long serialVersionUID = 1L;
+
                                     @Override
                                     public Boolean call(
                                             Tuple2<Long, Tuple2<Tuple2<String, String>, Optional<Boolean>>> tuple) throws Exception {
@@ -176,6 +190,7 @@ public class AdClickRealTimeStatSpark {
                         JavaPairRDD<String, String> resultRDD = filteredRDD.mapToPair(
                                 new PairFunction<Tuple2<Long, Tuple2<Tuple2<String, String>, Optional<Boolean>>>, String, String>() {
                                     private static final long serialVersionUID = 1L;
+
                                     @Override
                                     public Tuple2<String, String> call(
                                             Tuple2<Long, Tuple2<Tuple2<String, String>, Optional<Boolean>>> tuple) throws Exception {
@@ -419,5 +434,132 @@ public class AdClickRealTimeStatSpark {
 
         });
     }
+
+
+    /**
+     * 计算广告点击流量实时统计
+     *
+     * @param filteredAdRealTimeLogDStream
+     * @return
+     */
+    private static JavaPairDStream<String, Long> calculateRealTimeStat(JavaPairDStream<String, String> filteredAdRealTimeLogDStream) {
+        // 业务逻辑一
+        // 广告点击流量实时统计
+        // 黑名单实际上是广告类的实时系统中，比较常见的一种基础的应用
+
+        // 计算每天各省各城市各广告的点击量
+        // 数据实时不断地更新到mysql中的，J2EE系统，是提供实时报表给用户查看的
+        // j2ee系统每隔几秒钟，就从mysql中搂一次最新数据，每次都可能不一样
+        // 设计出来几个维度：日期、省份、城市、广告
+        // 用户可以看到，实时的数据，比如2015-11-01，历史数据
+        // 2015-12-01，当天，可以看到当天所有的实时数据（动态改变），比如江苏省南京市
+        // 广告可以进行选择（广告主、广告名称、广告类型来筛选一个出来）
+        // 拿着date、province、city、adid，去mysql中查询最新的数据
+        // 等等，基于这几个维度，以及这份动态改变的数据，是可以实现比较灵活的广告点击流量查看的功能的
+
+        // date province city userid adid
+        // date_province_city_adid，作为key；1作为value
+        // 通过spark，直接统计出来全局的点击次数，在spark集群中保留一份；在mysql中，也保留一份
+        // 我们要对原始数据进行map，映射成<date_province_city_adid,1>格式
+        // 然后呢，对上述格式的数据，执行updateStateByKey算子
+        // spark streaming特有的一种算子，在spark集群内存中，维护一份key的全局状态
+        JavaPairDStream<String, Long> mappedDStream = filteredAdRealTimeLogDStream.mapToPair(
+                new PairFunction<Tuple2<String, String>, String, Long>() {
+                    private static final long serialVersionUID = 1L;
+
+                    @Override
+                    public Tuple2<String, Long> call(Tuple2<String, String> tuple) throws Exception {
+                        String log = tuple._2;
+                        String[] logSplited = log.split(" ");
+
+                        String timeStamp = logSplited[0];
+                        Date date = new Date(Long.valueOf(timeStamp));
+                        // yyyyMMdd
+                        String dateKey = DateUtils.formatDateKey(date);
+
+                        String province = logSplited[1];
+                        String city = logSplited[2];
+                        long adId = Long.valueOf(logSplited[4]);
+
+                        String key = dateKey + "_" + province + "_" + city + "_" + adId;
+
+                        return new Tuple2<>(key, 1L);
+                    }
+
+                });
+
+        // 在这个dstream中，就相当于，有每个batch rdd累加的各个key（各天各省份各城市各广告的点击次数）
+        // 每次计算出最新的值，就在aggregatedDStream中的每个batch rdd中反应出来
+        JavaPairDStream<String, Long> aggregatedDStream = mappedDStream.updateStateByKey(
+                new Function2<List<Long>, Optional<Long>, Optional<Long>>() {
+                    private static final long serialVersionUID = 1L;
+
+                    @Override
+                    public Optional<Long> call(List<Long> values, Optional<Long> optional) throws Exception {
+                        // 举例来说
+                        // 对于每个key，都会调用一次这个方法
+                        // 比如key是<20151201_Jiangsu_Nanjing_10001,1>，就会来调用一次这个方法7
+                        // 10个
+
+                        // values，(1,1,1,1,1,1,1,1,1,1)
+
+                        // 首先根据optional判断，之前这个key，是否有对应的状态
+                        long clickCount = 0L;
+
+                        // 如果说，之前是存在这个状态的，那么就以之前的状态作为起点，进行值的累加
+                        if (optional.isPresent()) {
+                            clickCount = optional.get();
+                        }
+
+                        // values，代表了，batch rdd中，每个key对应的所有的值
+                        for (Long value : values) {
+                            clickCount += value;
+                        }
+
+                        return Optional.of(clickCount);
+                    }
+                });
+
+        // 将计算出来的最新结果，同步一份到mysql中给J2EE系统使用
+        aggregatedDStream.foreachRDD(new Function<JavaPairRDD<String, Long>, Void>() {
+            private static final long serialVersionUID = 1L;
+
+            @Override
+            public Void call(JavaPairRDD<String, Long> rdd) throws Exception {
+                rdd.foreachPartition(new VoidFunction<Iterator<Tuple2<String, Long>>>() {
+                    private static final long serialVersionUID = 1L;
+
+                    @Override
+                    public void call(Iterator<Tuple2<String, Long>> iterator) throws Exception {
+                        List<AdStat> adStatList = new ArrayList<>();
+
+                        while (iterator.hasNext()) {
+                            Tuple2<String, Long> tuple = iterator.next();
+
+                            String[] keySplited = tuple._1.split("_");
+                            String date = keySplited[0];
+                            String province = keySplited[1];
+                            String city = keySplited[2];
+                            long adId = Long.valueOf(keySplited[3]);
+
+                            long clickCount = tuple._2;
+
+                            AdStat adStat = new AdStat(date, province, city, adId, clickCount);
+                            adStatList.add(adStat);
+                        }
+
+                        IAdStatDAO adStatDAO = DaoFactory.getAdStatDAO();
+                        adStatDAO.updateBatch(adStatList);
+                    }
+                });
+
+                return null;
+            }
+
+        });
+
+        return aggregatedDStream;
+    }
+
 
 }

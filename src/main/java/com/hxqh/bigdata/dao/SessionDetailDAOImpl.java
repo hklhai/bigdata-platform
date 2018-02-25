@@ -8,6 +8,8 @@ import java.util.List;
 
 /**
  * Created by Ocean lin on 2018/1/18.
+ *
+ * @author Lin
  */
 public class SessionDetailDAOImpl implements ISessionDetailDAO {
 

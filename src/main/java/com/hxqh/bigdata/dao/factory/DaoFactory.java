@@ -5,6 +5,8 @@ import com.hxqh.bigdata.dao.*;
 
 /**
  * DAO工厂类
+ *
+ * @author Lin
  */
 public class DaoFactory {
 
@@ -41,5 +43,8 @@ public class DaoFactory {
         return new AdBlacklistDAOImpl();
     }
 
+    public static IAdStatDAO getAdStatDAO() {
+        return new AdStatDAOImpl();
+    }
 
 }

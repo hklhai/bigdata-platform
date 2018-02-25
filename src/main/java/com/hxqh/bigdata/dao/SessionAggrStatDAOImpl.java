@@ -6,6 +6,7 @@ import com.hxqh.bigdata.jdbc.JDBCHelper;
 /**
  * session聚合统计DAO实现类
  *
+ * @author Lin
  */
 public class SessionAggrStatDAOImpl implements ISessionAggrStatDAO {
 

@@ -5,6 +5,8 @@ import com.hxqh.bigdata.domain.SessionRandomExtract;
 
 /**
  * session随机抽取模块DAO接口
+ *
+ * @author Lin
  */
 public interface ISessionRandomExtractDAO {
 

@@ -6,6 +6,8 @@ import com.hxqh.bigdata.jdbc.JDBCHelper;
 /**
  * 活跃session top10的DAO实现
  * Created by Ocean lin on 2018/1/17.
+ *
+ * @author Lin
  */
 public class Top10SessionDAOImpl implements ITop10SessionDAO {
     @Override

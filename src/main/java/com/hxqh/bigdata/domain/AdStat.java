@@ -13,6 +13,17 @@ public class AdStat {
     private long adid;
     private long clickCount;
 
+    public AdStat() {
+    }
+
+    public AdStat(String date, String province, String city, long adid, long clickCount) {
+        this.date = date;
+        this.province = province;
+        this.city = city;
+        this.adid = adid;
+        this.clickCount = clickCount;
+    }
+
     public String getDate() {
         return date;
     }
