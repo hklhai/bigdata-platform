@@ -3,7 +3,7 @@ package com.hxqh.bigdata.domain;
 /**
  * top10品类
  *
- * @author Administrator
+ * @author Ocean
  */
 public class Top10Category {
 

@@ -2,6 +2,8 @@ package com.hxqh.bigdata.domain;
 
 /**
  * Created by Ocean lin on 2018/1/17.
+ *
+ * @author Ocean
  */
 public class SessionDetail {
 

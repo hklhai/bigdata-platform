@@ -2,6 +2,8 @@ package com.hxqh.bigdata.domain;
 
 /**
  * 随机抽取的session
+ *
+ * @author Ocean
  */
 public class SessionRandomExtract {
 
